@@ -1,6 +1,10 @@
 (ns runner_puncher.worldgen
   (:require [runner_puncher.framework :refer :all]))
 
+(def min-x 0)
+(def min-y 1)
+(def final-floor-depth 10)
+
 (def out-of-bounds {:walkable false})
 (def tiles
   {:floor {:char (str (char 250))
@@ -31,36 +35,65 @@
   (let [rows (seq (.split room "\n"))
         lookup {\# :wall
                 \. :floor
-                \+ :door}]
+                \+ :door
+                \1 (rand-nth [:floor :floor :floor :wall])
+                \2 (rand-nth [:floor :floor :floor :wall])
+                \3 (rand-nth [:floor :floor :floor :wall])
+                \4 (rand-nth [:floor :floor :floor :wall])}]
     (into {} (for [x (range (count (first rows)))
                    y (range (count rows))]
                [[x y] (lookup (nth (nth rows y) x))]))))
 
 
-(def room-list (mapv room-to-tiles
-  [(str "###+###+###+###\n"
-        "#.............#\n"
-        "#.............#\n"
-        "+.............+\n"
-        "#.............#\n"
-        "#.............#\n"
+(defn room-list [] (mapv room-to-tiles
+  [(str "#####+#####\n"
+        "#2244.4422#\n"
+        "#21.....12#\n"
+        "#4.......4#\n"
+        "#4.......4#\n"
+        "+....3....+\n"
+        "#4.......4#\n"
+        "#4.......4#\n"
+        "#21.....12#\n"
+        "#2244.4422#\n"
+        "#####+#####")
+   (str "#####+#####\n"
+        "###2...2###\n"
+        "##.......##\n"
+        "#2...4...2#\n"
+        "#...131...#\n"
+        "+..43334..+\n"
+        "#...131...#\n"
+        "#2...4...2#\n"
+        "##.......##\n"
+        "###2...2###\n"
+        "#####+#####")
+   (str "###+###+###+###\n"
+        "#.1.3.....3.1.#\n"
+        "#4...4...4...4#\n"
+        "#.1.3.....3.1.#\n"
+        "+.....222.....+\n"
+        "#.1.3.....3.1.#\n"
+        "#4...4...4...4#\n"
+        "#.1.3.....3.1.#\n"
         "###+###+###+###")
-   (str "###+###\n"
-        "#.....#\n"
-        "#.....#\n"
-        "#.....#\n"
-        "+.....+\n"
-        "#.....#\n"
-        "#.....#\n"
-        "#.....#\n"
-        "+.....+\n"
-        "#.....#\n"
-        "#.....#\n"
-        "#.....#\n"
-        "+.....+\n"
-        "#.....#\n"
-        "#.....#\n"
-        "##+####")]))
+   (str "####+####\n"
+        "#.......#\n"
+        "#141.141#\n"
+        "#.......#\n"
+        "+.......+\n"
+        "#3.3.3.3#\n"
+        "#.4...4.#\n"
+        "#...2...#\n"
+        "+...2...+\n"
+        "#...2...#\n"
+        "#.4...4.#\n"
+        "#3.3.3.3#\n"
+        "+.......+\n"
+        "#.......#\n"
+        "#141.141#\n"
+        "#.......#\n"
+        "####+####")]))
 
 (defn find-tile [tile grid]
   (for [[xy t] grid :when (= t tile)] xy))
@@ -78,10 +111,10 @@
   (map-keys #(mapv + % [ox oy]) room))
 
 (defn is-in-bounds? [x y]
-  (and (<= 0 x (- width-in-characters 2)) (<= 0 y (- height-in-characters 2))))
+  (and (<= min-x x (- width-in-characters 2)) (<= min-y y (- height-in-characters 2))))
 
 (defn is-valid-placement [grid room]
-  (and (all? identity (map second (merge-with = grid room)))
+  (and (all? identity (map second (merge-with (fn [a b] (or (= a b) (= :door a))) grid room)))
        (all? (fn [[x y]] (is-in-bounds? x y)) (map first room))))
 
 (defn remove-extra-doors [grid dx dy]
@@ -115,9 +148,9 @@
             (place-room grid room gx gy rx ry))))
 
 (defn grow-levels [levels]
-  (mapcat #(add-one-room % room-list) levels))
+  (mapcat #(add-one-room % (room-list)) levels))
 
-(defn position-start-room [room stairs-x stairs-y start-x start-y]
+(defn position-start-room [room stairs-x stairs-y start-x start-y stairs]
   (let [w (- (apply max (map first (map first room))) 2)
         h (- (apply max (map second (map first room))) 2)
         ox (cond
@@ -136,9 +169,9 @@
             (- start-y (rand-int h) 1))]
     (loop [ox ox oy oy]
       (cond
-       (< ox 0)
+       (< ox min-x)
        (recur (inc ox) oy)
-       (< oy 0)
+       (< oy min-y)
        (recur ox (inc oy))
        (> (+ ox w 3) width-in-characters)
        (recur (dec ox) oy)
@@ -146,16 +179,17 @@
        (recur ox (dec oy))
        :else
        (merge (position-room room ox oy)
-              {[stairs-x stairs-y] :stairs-up})))))
+              {[start-x start-y] :floor}
+              {[stairs-x stairs-y] stairs})))))
 
-(defn add-downstaris [grid]
+(defn add-end-stairs [grid tile]
   (let [is-candidate-door (fn [[x y]] (>= 3 (count (for [ox [-1 0 1]
                                                          oy [-1 0 1]
                                                          :let [tile (get grid [(+ x ox) (+ y oy)])]
                                                          :when (= tile :floor)]
                                                      tile))))
         positions (filter is-candidate-door (find-tile :door grid))
-        stairs (into {} (for [xy positions] [xy :stairs-down]))]
+        stairs (into {} (for [xy positions] [xy tile]))]
     (merge grid stairs)))
 
 (defn fix-tiles [grid]
@@ -168,14 +202,14 @@
                                           [[(+ x ox) (+ y oy)] (or tile :wall)]))))]
     (reduce fix-near-door grid doors)))
 
-(defn generate-level [stairs-x stairs-y start-x start-y]
-  (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y) room-list)
+(defn generate-level [stairs-x stairs-y start-x start-y stairs-from stairs-to]
+  (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))
          rooms-remaining 5]
     (println (count levels))
     (cond
      (= 0 (count levels))
-     (recur (map #(position-start-room % stairs-x stairs-y start-x start-y) room-list) 5)
+     (recur (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list)) 5)
      (= 0 rooms-remaining)
-     (fix-tiles (add-downstaris (rand-nth levels)))
+     (fix-tiles (add-end-stairs (rand-nth levels) stairs-to))
      :else
-     (recur (take 10 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
+     (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))

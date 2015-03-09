@@ -9,12 +9,15 @@
 (declare start-screen play-screen win-screen lose-screen)
 
 (defn new-game[]
-  {:grid (generate-level 4 9 5 9)
-   :player {:type :player :path [] :x 5 :y 9 :direction [0 0]}})
+  {:grid (generate-level 4 9 5 9 :stairs-up :stairs-down)
+   :player {:type :player :going-up false :path [] :x 5 :y 9 :dungeon-level 1 :direction [0 0]}})
 
 (def game-atom (atom new-game))
 
 (def player-target-atom (atom [5 3]))
+
+(defn move-player-target [mx my]
+  (swap! player-target-atom #(map + % [mx my])))
 
 (defn render-grid-tile [t [[x y] tile]]
   (add-string t (:char (tile tiles)) x y (:fg (tile tiles)) (:bg (tile tiles))))
@@ -37,6 +40,11 @@
         add-one (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 40 40) (hsl 0 40 40))))]
     (reduce add-one t points)))
 
+(defn render-hud [t player]
+  (-> t
+      (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 33 33))
+      (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)))
+
 (defn render-play-screen []
   (let [game @game-atom
         [mx my] @player-target-atom
@@ -47,7 +55,21 @@
     (-> {}
         (render-grid (:grid game))
         (render-creature player)
-        (render-target-fn))))
+        (render-target-fn)
+        (render-hud player))))
+
+
+
+(defn move-player-to-target []
+  (let [points (bresenham
+                (get-in @game-atom [:player :x])
+                (get-in @game-atom [:player :y])
+                (first @player-target-atom)
+                (second @player-target-atom))
+        grid (:grid @game-atom)
+        ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)]
+    (when ok
+      (swap! game-atom assoc-in [:player :path] points))))
 
 (defn key-press-play-screen [e]
   (when (empty? (get-in @game-atom [:player :path]))
@@ -66,23 +88,13 @@
   (when (empty? (get-in @game-atom [:player :path]))
     (reset! player-target-atom [(int (/ (.getX e) 12)) (int (/ (.getY e) 12))])))
 
-
-(defn move-player-to-target []
-  (let [points (bresenham
-                (get-in @game-atom [:player :x])
-                (get-in @game-atom [:player :y])
-                (first @player-target-atom)
-                (second @player-target-atom))
-        grid (:grid @game-atom)
-        ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)]
-    (when ok
-      (swap! game-atom assoc-in [:player :path] points))))
-
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)]
     (cond
-     (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]]))
+     (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-downstairs :player)
+     (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
+     (swap! game-atom move-creature-upstairs :player win-screen)
      (not (empty? (:path player)))
      (let [step (first (get-in @game-atom [:player :path]))]
        (swap! game-atom move-to :player (first step) (second step))
