@@ -69,16 +69,20 @@
 (defn add-char
   "A convenience function for working with terminal inputs.
   Adds a character (char or int) to a terminal at a specific point.
-  If fg or bg is nil, the existing fg or bg is used."
+  If c, fg, or bg is nil, the existing c, fg, or bg is used."
   [m c x y fg bg]
-  (assoc m [x y] {:c c :fg (or fg (get-in m [[x y] :fg]) {:r 96 :g 96 :b 96}) :bg (or bg (get-in m [[x y] :bg]) {:r 0 :g 0 :b 0})}))
+  (assoc m [x y] {:c (or c (get-in m [[x y] :c]) \?) :fg (or fg (get-in m [[x y] :fg]) {:r 96 :g 96 :b 96}) :bg (or bg (get-in m [[x y] :bg]) {:r 0 :g 0 :b 0})}))
 
 (defn add-string
   "A convenience function for working with terminal inputs.
   Adds a string to a terminal starting at a specific point.
-  If fg or bg is nil, the existing fg or bg is used."
+  If s, fg, or bg is nil, the existing s, fg, or bg is used."
   [m s x y fg bg]
-  (if (empty? s)
-    m
-    (add-string (add-char m (first s) x y fg bg) (rest s) (inc x) y fg bg)))
+  (cond
+   (nil? s)
+   (add-string (add-char m nil x y fg bg) (rest s) (inc x) y fg bg)
+   (empty? s)
+   m
+   :else
+   (add-string (add-char m (first s) x y fg bg) (rest s) (inc x) y fg bg)))
 
