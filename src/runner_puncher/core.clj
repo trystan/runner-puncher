@@ -9,8 +9,11 @@
 (declare start-screen play-screen win-screen lose-screen)
 
 (defn new-game[]
-  {:grid (generate-level 4 9 5 9 :stairs-up :stairs-down)
-   :player {:type :player :going-up false :path [] :x 5 :y 9 :dungeon-level 1 :direction [0 0]}})
+  (let [g {:tick 0
+           :messages []
+           :grid (generate-level 4 9 5 9 :stairs-up :stairs-down)
+           :player {:type :player :going-up false :path [] :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
+    (add-message g "You are RUNNER_PUNCHER.")))
 
 (def game-atom (atom new-game))
 
@@ -45,6 +48,18 @@
       (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 33 33))
       (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)))
 
+(defn render-messages [t messages]
+  (let [most-recent (:at (last (sort-by :at messages)))]
+    (loop [t t
+           messages (filter #(= most-recent (:at %)) messages)
+           y (- height-in-characters (count messages) 1)]
+      (if (empty? messages)
+        t
+        (recur
+         (add-center-string t (:text (first messages)) y)
+         (rest messages)
+         (inc y))))))
+
 (defn render-play-screen []
   (let [game @game-atom
         [mx my] @player-target-atom
@@ -56,7 +71,8 @@
         (render-grid (:grid game))
         (render-creature player)
         (render-target-fn)
-        (render-hud player))))
+        (render-hud player)
+        (render-messages (:messages game)))))
 
 
 
@@ -91,14 +107,14 @@
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)]
     (cond
-     (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
-     (swap! game-atom move-creature-downstairs :player)
-     (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
-     (swap! game-atom move-creature-upstairs :player win-screen)
      (not (empty? (:path player)))
      (let [step (first (get-in @game-atom [:player :path]))]
        (swap! game-atom move-to :player (first step) (second step))
-       (swap! game-atom update-in [:player :path] rest)))))
+       (swap! game-atom update-in [:player :path] rest))
+     (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
+     (swap! game-atom move-creature-downstairs :player)
+     (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
+     (swap! game-atom move-creature-upstairs :player win-screen))))
 
 
 
