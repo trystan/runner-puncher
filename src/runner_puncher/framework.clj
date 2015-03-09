@@ -71,7 +71,7 @@
                             :on-key-press on-key-press
                             :on-mouse-move on-mouse-move
                             :on-mouse-press on-key-press
-                            :fps 15
+                            :fps 30
                             :on-timer on-timer}))
 
 

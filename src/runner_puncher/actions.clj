@@ -2,6 +2,9 @@
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.worldgen :refer :all]))
 
+(defn enemies [game]
+  (for [[k v] game :when (.startsWith (str k) ":enemy-")] v))
+
 (defn add-message [game message]
   (update game :messages #(conj % {:text message :at (:tick game)})))
 
@@ -16,18 +19,45 @@
       (assoc-in game [k :going-up] true)
       game)))
 
+(defn remove-enemies [game]
+  (let [ids (map :id (enemies game))]
+    (reduce dissoc game ids)))
+
 (defn ensure-floor [game k]
   (let [creature (get game k)]
       (assoc-in game [:graph [(:x creature) (:y creature)]] :floor)))
+
+(defn until-blocked [game points]
+  (loop [so-far []
+         here (first points)
+         remaining (rest points)]
+    (cond
+     (nil? here)
+     (rest so-far)
+     (nil? (get-in game [:grid here]))
+     (rest so-far)
+     (get-in tiles [(get-in game [:grid here]) :walkable])
+     (recur
+       (conj so-far here)
+       (first remaining)
+       (rest remaining))
+     :else (rest so-far))))
+
+(defn knockback-creature [game id dx dy]
+  (let [kb (fn [c] (assoc c :path (until-blocked game (bresenham (:x c)
+                                                                 (:y c)
+                                                                 (+ (* 10 dx) (:x c))
+                                                                 (+ (* 10 dy) (:y c))))))]
+    (update-in game [id] kb)))
 
 (defn move-creature-downstairs [game k]
   (let [creature (get game k)
         [ox oy] (:direction creature)
         stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
         stairs-to (if (= final-floor-depth (:dungeon-level creature)) :stairs-up :stairs-down)]
-    (-> game
+    (-> (remove-enemies game)
         (update :tick inc)
-        (assoc :grid (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
+        (merge (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
         (update-in [k :dungeon-level] inc)
         (assoc-in [k :moved] false)
         (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- width-in-characters 2))))
@@ -40,9 +70,9 @@
         [ox oy] (:direction creature)]
     (if (= 1 (:dungeon-level creature))
       (swap-screen exit-screen)
-      (-> game
+      (-> (remove-enemies game)
           (update :tick inc)
-          (assoc :grid (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
+          (merge (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
           (update-in [k :dungeon-level] dec)
           (assoc-in [k :moved] false)
           (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- width-in-characters 2))))
@@ -82,3 +112,18 @@
   (let [x (get-in game [k :x])
         y (get-in game [k :y])]
     (move-to game k (+ x mx) (+ y my))))
+
+(defn move-by-path [game k]
+  (let [step (first (get-in game [k :path]))
+        game (-> game
+                 (move-to k (first step) (second step))
+                 (update-in [k :path] rest))]
+    (if (= :player k)
+      (let [p (get game k)
+            enemy (first (filter #(and (= (:x %) (:x p)) (= (:y %) (:y p))) (enemies game)))]
+        (if enemy
+          (-> game
+              (knockback-creature (:id enemy) (first (:direction p)) (second (:direction p)))
+              (assoc-in [k :path] []))
+          game))
+      game)))

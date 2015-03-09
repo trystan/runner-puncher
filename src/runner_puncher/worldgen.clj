@@ -29,7 +29,10 @@
 
 (def creatures
   {:player {:char "@"
-            :fg {:r 250 :g 250 :b 250}}})
+            :fg {:r 250 :g 250 :b 250}}
+   :arachnid {:char "a"
+              :fg (hsl 0 66 66)}})
+
 
 (defn room-to-tiles [room]
   (let [rows (seq (.split room "\n"))
@@ -46,56 +49,62 @@
 
 
 (defn room-list [] (mapv room-to-tiles
-  [(str "#####+#####\n"
-        "#2244.4422#\n"
-        "#21.....12#\n"
-        "#4.......4#\n"
-        "#4.......4#\n"
-        "+....3....+\n"
-        "#4.......4#\n"
-        "#4.......4#\n"
-        "#21.....12#\n"
-        "#2244.4422#\n"
-        "#####+#####")
-   (str "#####+#####\n"
-        "###2...2###\n"
-        "##.......##\n"
-        "#2...4...2#\n"
-        "#...131...#\n"
-        "+..43334..+\n"
-        "#...131...#\n"
-        "#2...4...2#\n"
-        "##.......##\n"
-        "###2...2###\n"
-        "#####+#####")
-   (str "###+###+###+###\n"
-        "#.1.3.....3.1.#\n"
-        "#4...4...4...4#\n"
-        "#.1.3.....3.1.#\n"
-        "+.....222.....+\n"
-        "#.1.3.....3.1.#\n"
-        "#4...4...4...4#\n"
-        "#.1.3.....3.1.#\n"
-        "###+###+###+###")
-   (str "####+####\n"
-        "#.......#\n"
-        "#141.141#\n"
-        "#.......#\n"
-        "+.......+\n"
-        "#3.3.3.3#\n"
-        "#.4...4.#\n"
-        "#...2...#\n"
-        "+...2...+\n"
-        "#...2...#\n"
-        "#.4...4.#\n"
-        "#3.3.3.3#\n"
-        "+.......+\n"
-        "#.......#\n"
-        "#141.141#\n"
-        "#.......#\n"
-        "####+####")]))
+  [(str "######+######\n"
+        "#1111...2222#\n"
+        "#11.......22#\n"
+        "#1.........2#\n"
+        "#1.........2#\n"
+        "#...........#\n"
+        "+...........+\n"
+        "#...........#\n"
+        "#...........#\n"
+        "#4.........3#\n"
+        "#4.........3#\n"
+        "#44.......33#\n"
+        "#4444...3333#\n"
+        "######+######")
+   (str "####+####+####\n"
+        "#222......222#\n"
+        "#22...33...22#\n"
+        "#2..........2#\n"
+        "+...4....4...+\n"
+        "#............#\n"
+        "#.3...11...3.#\n"
+        "#.3...11...3.#\n"
+        "#............#\n"
+        "+...4....4...+\n"
+        "#2..........2#\n"
+        "#22...33...22#\n"
+        "#222......222#\n"
+        "####+####+####")
+   (str "####+####+####+####\n"
+        "#1....2.....2....1#\n"
+        "#.......333.......#\n"
+        "+..44...333...44..+\n"
+        "#.......333.......#\n"
+        "#1....2.....2....1#\n"
+        "####+####+####+####")
+   (str "###+###\n"
+        "#1...1#\n"
+        "#.....#\n"
+        "#..4..#\n"
+        "+..4..+\n"
+        "#.....#\n"
+        "#2...2#\n"
+        "#.....#\n"
+        "#.333.#\n"
+        "+.333.+\n"
+        "#.333.#\n"
+        "#.....#\n"
+        "#2...2#\n"
+        "#.....#\n"
+        "+..4..+\n"
+        "#..4..#\n"
+        "#.....#\n"
+        "#1...1#\n"
+        "###+###")]))
 
-(defn find-tile [tile grid]
+(defn find-tiles [tile grid]
   (for [[xy t] grid :when (= t tile)] xy))
 
 (defn all? [p coll]
@@ -114,11 +123,12 @@
   (and (<= min-x x (- width-in-characters 2)) (<= min-y y (- height-in-characters 2))))
 
 (defn is-valid-placement [grid room]
-  (and (all? identity (map second (merge-with (fn [a b] (or (= a b) (= :door a))) grid room)))
+  (and (any? nil? (for [[xy _] room] (get grid xy)))
+       (all? identity (map second (merge-with (fn [a b] (or (= a b) (= :door b) (= :door a))) grid room)))
        (all? (fn [[x y]] (is-in-bounds? x y)) (map first room))))
 
 (defn remove-extra-doors [grid dx dy]
-  (let [doors (find-tile :door grid)
+  (let [doors (find-tiles :door grid)
         keep-door (fn [[x y]] (or (and (= dx x) (= dy y))
                                   (all? #(not (nil? %)) (for [ox [-1 0 1]
                                                               oy [-1 0 1]]
@@ -134,7 +144,7 @@
         is-keeper (fn [[x y]] (any? nil? (for [ox [-1 0 1]
                                                oy [-1 0 1]]
                                            (get placed [(+ x ox) (+ y oy)]))))
-        valids (filter is-keeper (find-tile :door positioned))
+        valids (filter is-keeper (find-tiles :door positioned))
         [door-x door-y] (if (empty? valids) [25 25] (rand-nth valids))]
     (if (is-valid-placement grid positioned)
       (remove-extra-doors placed door-x door-y)
@@ -142,9 +152,9 @@
 
 (defn add-one-room [grid rooms]
   (remove nil?
-          (for [[gx gy] (find-tile :door grid)
+          (for [[gx gy] (find-tiles :door grid)
                 room rooms
-                [rx ry] (find-tile :door room)]
+                [rx ry] (find-tiles :door room)]
             (place-room grid room gx gy rx ry))))
 
 (defn grow-levels [levels]
@@ -188,23 +198,31 @@
                                                          :let [tile (get grid [(+ x ox) (+ y oy)])]
                                                          :when (= tile :floor)]
                                                      tile))))
-        positions (filter is-candidate-door (find-tile :door grid))
+        positions (filter is-candidate-door (find-tiles :door grid))
         stairs (into {} (for [xy positions] [xy tile]))]
     (merge grid stairs)))
 
 (defn fix-tiles [grid]
-  (let [doors (concat (find-tile :stairs-up grid) (find-tile :stairs-down grid))
+  (let [doors (concat (find-tiles :stairs-up grid) (find-tiles :stairs-down grid))
         fix-near-door (fn [grid [x y]]
                         (merge grid
                                (into {} (for [ox [-1 0 1]
                                               oy [-1 0 1]
                                               :let [tile (get grid [(+ x ox) (+ y oy)])]]
-                                          [[(+ x ox) (+ y oy)] (or tile :wall)]))))]
-    (reduce fix-near-door grid doors)))
+                                          [[(+ x ox) (+ y oy)] (or tile :wall)]))))
+        fixed (reduce fix-near-door grid doors)
+        walkable-neighbors (fn [x y] (count (for [ox [-1 0 1]
+                                                  oy [-1 0 1]
+                                                  :let [tile (get grid [(+ x ox) (+ y oy)])]
+                                                  :when (:walkable (get tiles tile))]
+                                       1)))]
+    (into {} (for [[[x y] tile] fixed
+                   :when (or (not= :wall tile) (< 0 (walkable-neighbors x y)))]
+               [[x y] tile]))))
 
-(defn generate-level [stairs-x stairs-y start-x start-y stairs-from stairs-to]
+(defn generate-grid [stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))
-         rooms-remaining 5]
+         rooms-remaining 4]
     (println (count levels))
     (cond
      (= 0 (count levels))
@@ -213,3 +231,15 @@
      (fix-tiles (add-end-stairs (rand-nth levels) stairs-to))
      :else
      (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
+
+(defn new-enemy [[x y]]
+  {:type :arachnid :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))})
+
+(defn make-creatures [grid]
+  (let [candidates (find-tiles :floor grid)
+        positions (take 12 (shuffle candidates))]
+    (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
+
+(defn generate-level [stairs-x stairs-y start-x start-y stairs-from stairs-to]
+  (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)]
+    (merge {:grid grid} (make-creatures grid))))

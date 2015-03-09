@@ -8,12 +8,13 @@
 
 (declare start-screen play-screen win-screen lose-screen)
 
-(defn new-game[]
+(defn new-game []
   (let [g {:tick 0
            :messages []
-           :grid (generate-level 4 9 5 9 :stairs-up :stairs-down)
            :player {:type :player :going-up false :path [] :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
-    (add-message g "You are RUNNER_PUNCHER.")))
+    (-> g
+        (merge (generate-level 4 9 5 9 :stairs-up :stairs-down))
+        (add-message "You are RUNNER_PUNCHER."))))
 
 (def game-atom (atom new-game))
 
@@ -32,6 +33,9 @@
   (let [c ((:type creature) creatures)]
     (add-string t (:char c) (:x creature) (:y creature) (:fg c) nil)))
 
+(defn render-creatures [t creatures]
+  (reduce render-creature t creatures))
+
 (defn render-player-path [t points]
   (let [add-one (fn [t [x y]] (add-string t nil x y nil (hsl 60 40 40)))]
     (reduce add-one t points)))
@@ -45,14 +49,16 @@
 
 (defn render-hud [t player]
   (-> t
-      (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 33 33))
+      (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
       (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)))
 
-(defn render-messages [t messages]
+(defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
     (loop [t t
            messages (filter #(= most-recent (:at %)) messages)
-           y (- height-in-characters (count messages) 1)]
+           y (if at-top
+               min-y
+               (- height-in-characters (count messages)))]
       (if (empty? messages)
         t
         (recur
@@ -69,19 +75,20 @@
                            #(render-player-path % (:path player)))]
     (-> {}
         (render-grid (:grid game))
+        (render-creatures (enemies game))
         (render-creature player)
         (render-target-fn)
         (render-hud player)
-        (render-messages (:messages game)))))
+        (render-messages (> (:y player) (* 0.75 height-in-characters)) (:messages game)))))
 
 
 
 (defn move-player-to-target []
-  (let [points (bresenham
-                (get-in @game-atom [:player :x])
-                (get-in @game-atom [:player :y])
-                (first @player-target-atom)
-                (second @player-target-atom))
+  (let [points (rest (bresenham
+                      (get-in @game-atom [:player :x])
+                      (get-in @game-atom [:player :y])
+                      (first @player-target-atom)
+                      (second @player-target-atom)))
         grid (:grid @game-atom)
         ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)]
     (when ok
@@ -107,10 +114,12 @@
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)]
     (cond
+     (not (all? empty? (map :path (enemies @game-atom))))
+     (doseq [e (enemies @game-atom)
+             :when (and (seq? (:path e)) (> (count (:path e)) 0))]
+       (swap! game-atom move-by-path (:id e)))
      (not (empty? (:path player)))
-     (let [step (first (get-in @game-atom [:player :path]))]
-       (swap! game-atom move-to :player (first step) (second step))
-       (swap! game-atom update-in [:player :path] rest))
+     (swap! game-atom move-by-path :player)
      (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-downstairs :player)
      (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
