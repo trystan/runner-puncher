@@ -7,10 +7,13 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
-(def render-terminal (new-renderer 620 480 cp437-12x12))
-(def width-in-characters (int (/ 620 12)))
-(def height-in-characters (int (/ 480 12)))
+(def tile-width 10)
+(def tile-height 10)
+(def render-terminal (new-renderer 620 480 cp437-10x10))
+(def width-in-characters (int (/ 620 tile-width)))
+(def height-in-characters (int (/ 480 tile-height)))
 
+(def red {:r 250 :g 0 :b 0})
 (def fg {:r 191 :g 191 :b 191})
 (def bg {:r 0 :g 0 :b 0})
 

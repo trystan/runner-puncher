@@ -50,6 +50,15 @@
                                                                  (+ (* 10 dy) (:y c))))))]
     (update-in game [id] kb)))
 
+(defn attack-creature [game id-from id-to]
+  (let [attacker (get game id-from)
+        [dx dy] (:direction attacker)]
+    (println id-from attacker dx dy)
+    (-> game
+        (assoc-in [id-from :path] [])
+        (update-in [id-to :health] dec)
+        (knockback-creature id-to dx dy))))
+
 (defn move-creature-downstairs [game k]
   (let [creature (get game k)
         [ox oy] (:direction creature)
@@ -62,6 +71,7 @@
         (assoc-in [k :moved] false)
         (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- width-in-characters 2))))
         (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- height-in-characters 2))))
+        (add-message (str "You decend to level " (inc (:dungeon-level creature)) "."))
         (ensure-floor k)
         (allow-going-up-stairs k))))
 
@@ -77,12 +87,15 @@
           (assoc-in [k :moved] false)
           (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- width-in-characters 2))))
           (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- height-in-characters 2))))
+          (add-message (str "You acend to level " (inc (:dungeon-level creature)) "."))
           (ensure-floor k)))))
 
 (defn terrain-message [game k]
   (let [creature (get game k)
         tile (get-in game [:grid [(:x creature) (:y creature)]])]
     (cond
+     (not (:moved creature))
+     game
      (and (= :stairs-up tile) (not (:going-up creature)))
      (add-message game "You can't go up until you get the TODO.")
      (and (= :stairs-down tile) (:going-up creature))
@@ -122,8 +135,10 @@
       (let [p (get game k)
             enemy (first (filter #(and (= (:x %) (:x p)) (= (:y %) (:y p))) (enemies game)))]
         (if enemy
-          (-> game
-              (knockback-creature (:id enemy) (first (:direction p)) (second (:direction p)))
-              (assoc-in [k :path] []))
+          (attack-creature game k (:id enemy))
           game))
       game)))
+
+(defn remove-dead-creatures [game]
+  (let [deads (for [[id x] game :when (and (:health x) (< (:health x) 1))] id)]
+    (reduce dissoc game deads)))

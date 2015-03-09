@@ -9,23 +9,23 @@
 (def tiles
   {:floor {:char (str (char 250))
            :walkable true
-           :fg (hsl 210 5 50)
-           :bg (hsl 210 5  5)}
-   :wall {:char "#"
-          :fg (hsl 210 5 50)
-          :bg (hsl 210 5 20)}
+           :fg (hsl 220 25 50)
+           :bg (hsl 220 25  5)}
+   :wall {:char (str (char 4))
+          :fg (hsl 220 33 60)
+          :bg (hsl 220 33 40)}
    :door {:char "+"
           :walkable true
-          :fg (hsl 30 10 70)
-          :bg (hsl 30 80 20)}
+          :fg (hsl 30 25 70)
+          :bg (hsl 30 95 20)}
    :stairs-down {:char ">"
                  :walkable true
-                 :fg (hsl 210 5 50)
-                 :bg (hsl 210 5  5)}
+                 :fg (hsl 220 25 50)
+                 :bg (hsl 220 25  5)}
    :stairs-up {:char "<"
                  :walkable true
-                 :fg (hsl 210 5 50)
-                 :bg (hsl 210 5  5)}})
+                 :fg (hsl 220 25 50)
+                 :bg (hsl 220 25  5)}})
 
 (def creatures
   {:player {:char "@"
@@ -233,7 +233,8 @@
      (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
-  {:type :arachnid :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))})
+  {:type :arachnid :health 1
+   :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))})
 
 (defn make-creatures [grid]
   (let [candidates (find-tiles :floor grid)

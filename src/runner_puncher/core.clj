@@ -11,7 +11,9 @@
 (defn new-game []
   (let [g {:tick 0
            :messages []
-           :player {:type :player :going-up false :path [] :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
+           :player {:type :player :going-up false :path []
+                    :health 3 :max-health 3
+                    :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
         (merge (generate-level 4 9 5 9 :stairs-up :stairs-down))
         (add-message "You are RUNNER_PUNCHER."))))
@@ -24,7 +26,11 @@
   (swap! player-target-atom #(map + % [mx my])))
 
 (defn render-grid-tile [t [[x y] tile]]
-  (add-string t (:char (tile tiles)) x y (:fg (tile tiles)) (:bg (tile tiles))))
+  (if (= 0 (mod (+ x y) 2))
+    (add-string t (:char (tile tiles)) x y (:fg (tile tiles)) (:bg (tile tiles)))
+    (add-string t (:char (tile tiles)) x y
+                (merge-with + {:r 5 :g 5 :b 5} (:fg (tile tiles)))
+                (merge-with + {:r 5 :g 5 :b 5} (:bg (tile tiles))))))
 
 (defn render-grid [t grid]
   (reduce render-grid-tile t grid))
@@ -50,7 +56,12 @@
 (defn render-hud [t player]
   (-> t
       (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
-      (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)))
+      (add-string (str "z: Laser cannon") 1 0 fg nil)
+      (add-string (str "x: Rusty sword") 21 0 fg nil)
+      (add-string (str "?: help") 41 0 fg nil)
+      (add-string (str "@: ") (- width-in-characters 7) 0 fg nil)
+      (add-string (apply str (repeat (:health player) (char 3))) (- width-in-characters 4) 0 red nil)
+      (add-string (apply str (repeat (- (:max-health player) (:health player)) (char 3))) (+ (:health player) (- width-in-characters 4)) 0 fg nil)))
 
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
@@ -109,7 +120,7 @@
 
 (defn mouse-move-play-screen [e]
   (when (empty? (get-in @game-atom [:player :path]))
-    (reset! player-target-atom [(int (/ (.getX e) 12)) (int (/ (.getY e) 12))])))
+    (reset! player-target-atom [(int (/ (.getX e) tile-width)) (int (/ (.getY e) tile-height))])))
 
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)]
@@ -123,7 +134,9 @@
      (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-downstairs :player)
      (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
-     (swap! game-atom move-creature-upstairs :player win-screen))))
+     (swap! game-atom move-creature-upstairs :player win-screen)
+     :else
+     (swap! game-atom remove-dead-creatures))))
 
 
 
