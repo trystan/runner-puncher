@@ -238,7 +238,7 @@
      (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
-  {:type :arachnid :health 1
+  {:type :arachnid :health 1 :steps-remaining 1 :max-steps 1 :knockback-amount 0
    :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))})
 
 (defn make-creatures [grid]

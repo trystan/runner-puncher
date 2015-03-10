@@ -14,6 +14,7 @@
 (def height-in-characters (int (/ 480 tile-height)))
 
 (def red {:r 250 :g 0 :b 0})
+(def blue {:r 0 :g 0 :b 250})
 (def fg {:r 191 :g 191 :b 191})
 (def bg {:r 0 :g 0 :b 0})
 

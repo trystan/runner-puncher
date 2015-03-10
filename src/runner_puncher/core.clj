@@ -11,9 +11,9 @@
 (defn new-game []
   (let [g {:tick 0
            :messages []
-           :player {:id :player
+           :player {:id :player :knockback-amount 5
                     :type :player :going-up false :path []
-                    :health 3 :max-health 3
+                    :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
         (merge (generate-level 4 9 5 9 :stairs-up :stairs-down))
@@ -55,14 +55,23 @@
     (reduce add-one t points)))
 
 (defn render-hud [t player]
-  (-> t
-      (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
-      (add-string (str "z: Laser cannon") 1 0 fg nil)
-      (add-string (str "x: Rusty sword") 21 0 fg nil)
-      (add-string (str "?: help") 41 0 fg nil)
-      (add-string (str "@: ") (- width-in-characters 7) 0 fg nil)
-      (add-string (apply str (repeat (:health player) (char 3))) (- width-in-characters 4) 0 red nil)
-      (add-string (apply str (repeat (- (:max-health player) (:health player)) (char 3))) (+ (:health player) (- width-in-characters 4)) 0 fg nil)))
+  (let [heart-start (- width-in-characters (:max-health player) 1)
+        moves-start (- heart-start (:max-steps player) 3)]
+    (-> t
+        (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
+        (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
+
+        (add-string (str "?: help") (- moves-start 10) 0 fg nil)
+
+        (add-string (apply str (repeat (:steps-remaining player) (char 4)))
+                    moves-start 0 blue nil)
+        (add-string (apply str (repeat (- (:max-steps player) (:steps-remaining player)) (char 4)))
+                    (+ moves-start (:steps-remaining player)) 0 fg nil)
+
+        (add-string (apply str (repeat (:health player) (char 3)))
+                    heart-start 0 red nil)
+        (add-string (apply str (repeat (- (:max-health player) (:health player)) (char 3)))
+                    (+ heart-start (:health player)) 0 fg nil))))
 
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
@@ -131,13 +140,18 @@
      (doseq [c creatures
              :when (and (seq? (:path c)) (> (count (:path c)) 0))]
        (swap! game-atom move-by-path (:id c)))
-     ; TODO: enemy move and attack
+     (< (:steps-remaining player) 1)
+     (do
+       (swap! game-atom move-enemies)
+       (swap! game-atom assoc-in [:player :steps-remaining] (:max-steps player)))
      (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-downstairs :player)
      (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-upstairs :player win-screen)
      :else
-     (swap! game-atom remove-dead-creatures))))
+     (swap! game-atom remove-dead-creatures))
+    (when (< (get-in @game-atom [:player :health]) 1)
+      (swap-screen lose-screen))))
 
 
 
@@ -177,7 +191,6 @@
                                              (reset! game-atom (new-game))
                                              (swap-screen play-screen))
                                    (println e)))})
-
 
 (defn -main []
   (start-game start-screen))
