@@ -139,6 +139,23 @@
           game))
       game)))
 
+(defn apply-on-death [game id]
+  (let [creature (get game id)
+        x (:x creature)
+        y (:y creature)]
+    (case (first (:on-death (get creatures (:type creature))))
+      :replace-tiles
+      (let [replacements (second (:on-death (get creatures (:type creature))))
+            neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)]
+                           [(+ x xo) (+ y yo)])
+            getter #(get replacements % %)
+            replace-fn (fn [g xy]
+                         (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
+        (reduce replace-fn game neighborhood))
+      game)))
+
 (defn remove-dead-creatures [game]
   (let [deads (for [[id x] game :when (and (:health x) (< (:health x) 1))] id)]
-    (reduce dissoc game deads)))
+    (reduce dissoc (reduce apply-on-death game deads) deads)))
+

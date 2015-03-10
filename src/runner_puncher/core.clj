@@ -11,7 +11,8 @@
 (defn new-game []
   (let [g {:tick 0
            :messages []
-           :player {:type :player :going-up false :path []
+           :player {:id :player
+                    :type :player :going-up false :path []
                     :health 3 :max-health 3
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
@@ -123,14 +124,14 @@
     (reset! player-target-atom [(int (/ (.getX e) tile-width)) (int (/ (.getY e) tile-height))])))
 
 (defn update-play-screen [e]
-  (let [player (get @game-atom :player)]
+  (let [player (get @game-atom :player)
+        creatures (conj (enemies @game-atom) player)]
     (cond
-     (not (all? empty? (map :path (enemies @game-atom))))
-     (doseq [e (enemies @game-atom)
-             :when (and (seq? (:path e)) (> (count (:path e)) 0))]
-       (swap! game-atom move-by-path (:id e)))
-     (not (empty? (:path player)))
-     (swap! game-atom move-by-path :player)
+     (not (all? empty? (map :path creatures)))
+     (doseq [c creatures
+             :when (and (seq? (:path c)) (> (count (:path c)) 0))]
+       (swap! game-atom move-by-path (:id c)))
+     ; TODO: enemy move and attack
      (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
      (swap! game-atom move-creature-downstairs :player)
      (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))

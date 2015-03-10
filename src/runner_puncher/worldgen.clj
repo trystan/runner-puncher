@@ -25,12 +25,17 @@
    :stairs-up {:char "<"
                  :walkable true
                  :fg (hsl 220 25 50)
-                 :bg (hsl 220 25  5)}})
+                 :bg (hsl 220 25  5)}
+   :web-floor {:char "#"
+               :walkable true
+               :fg (hsl 220  5 60)
+               :bg (hsl 220 25  5)}})
 
 (def creatures
   {:player {:char "@"
             :fg {:r 250 :g 250 :b 250}}
    :arachnid {:char "a"
+              :on-death [:replace-tiles {:floor :web-floor}]
               :fg (hsl 0 66 66)}})
 
 
