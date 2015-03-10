@@ -10,6 +10,7 @@
 
 (defn new-game []
   (let [g {:tick 0
+           :exit-screen win-screen
            :messages []
            :player {:id :player :knockback-amount 5
                     :type :player :going-up false :path []
@@ -47,9 +48,8 @@
   (let [add-one (fn [t [x y]] (add-string t nil x y nil (hsl 60 40 40)))]
     (reduce add-one t points)))
 
-(defn render-target-line [t [x0 y0] [x1 y1]]
-  (let [points (bresenham x0 y0 x1 y1)
-        grid (:grid @game-atom)
+(defn render-target-line [t points]
+  (let [grid (:grid @game-atom)
         ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)
         add-one (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 40 40) (hsl 0 40 40))))]
     (reduce add-one t points)))
@@ -91,8 +91,9 @@
   (let [game @game-atom
         [mx my] @player-target-atom
         player (:player game)
+        line (take (:steps-remaining player) (drop 1 (bresenham (:x player) (:y player) mx my)))
         render-target-fn (if (empty? (:path player))
-                           #(render-target-line % [(:x player) (:y player)] [mx my])
+                           #(render-target-line % line)
                            #(render-player-path % (:path player)))]
     (-> {}
         (render-grid (:grid game))
@@ -105,11 +106,12 @@
 
 
 (defn move-player-to-target []
-  (let [points (rest (bresenham
-                      (get-in @game-atom [:player :x])
-                      (get-in @game-atom [:player :y])
-                      (first @player-target-atom)
-                      (second @player-target-atom)))
+  (let [player (get @game-atom :player)
+        points (take (:steps-remaining player) (rest (bresenham
+                                                      (:x player)
+                                                      (:y player)
+                                                      (first @player-target-atom)
+                                                      (second @player-target-atom))))
         grid (:grid @game-atom)
         ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)]
     (when ok
@@ -144,10 +146,6 @@
      (do
        (swap! game-atom move-enemies)
        (swap! game-atom assoc-in [:player :steps-remaining] (:max-steps player)))
-     (and (not (:going-up player)) (= :stairs-down (get-in @game-atom [:grid [(:x player) (:y player)]])))
-     (swap! game-atom move-creature-downstairs :player)
-     (and (:going-up player) (= :stairs-up (get-in @game-atom [:grid [(:x player) (:y player)]])))
-     (swap! game-atom move-creature-upstairs :player win-screen)
      :else
      (swap! game-atom remove-dead-creatures))
     (when (< (get-in @game-atom [:player :health]) 1)

@@ -8,19 +8,13 @@
 (defn add-message [game message]
   (update game :messages #(conj % {:text message :at (:tick game)})))
 
-(defn allow-going-up-stairs [game k]
-  (let [creature (get game k)]
-    (if (= final-floor-depth (:dungeon-level creature))
-      (assoc-in game [k :going-up] true)
-      game)))
-
 (defn remove-enemies [game]
   (let [ids (map :id (enemies game))]
     (reduce dissoc game ids)))
 
 (defn ensure-floor [game k]
   (let [creature (get game k)]
-      (assoc-in game [:graph [(:x creature) (:y creature)]] :floor)))
+    (assoc-in game [:graph [(:x creature) (:y creature)]] :floor)))
 
 (defn until-blocked [game points]
   (loop [so-far []
@@ -33,29 +27,38 @@
      (rest so-far)
      (get-in tiles [(get-in game [:grid here]) :walkable])
      (recur
-       (conj so-far here)
-       (first remaining)
-       (rest remaining))
+      (conj so-far here)
+      (first remaining)
+      (rest remaining))
      :else (rest so-far))))
 
-(defn knockback-creature [game id dx dy amount]
+(defn knockback-creature [game id dx dy]
   (let [kb (fn [c] (-> c
                        (assoc :is-knocked-back true)
                        (assoc :path (until-blocked game (bresenham (:x c)
                                                                    (:y c)
-                                                                   (+ (* amount dx) (:x c))
-                                                                   (+ (* amount dy) (:y c)))))))]
+                                                                   (+ dx (:x c))
+                                                                   (+ dy (:y c)))))))]
     (update-in game [id] kb)))
 
 (defn attack-creature [game id-from id-to]
   (let [attacker (get game id-from)
-        [dx dy] (:direction attacker)]
+        attacked (get game id-to)
+        dx (- (:x attacked) (:x attacker))
+        dy (- (:y attacked) (:y attacker))
+        [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])]
     (-> game
         (assoc-in [id-from :path] [])
         (update-in [id-to :health] dec)
-        (knockback-creature id-to dx dy (:knockback-amount attacker)))))
+        (knockback-creature id-to dx dy))))
 
-(defn move-creature-downstairs [game k]
+(defn maybe-allow-going-up-stairs [game k]
+  (let [creature (get game k)]
+    (if (= final-floor-depth (:dungeon-level creature))
+      (assoc-in game [k :going-up] true)
+      game)))
+
+(defn move-downstairs [game k]
   (let [creature (get game k)
         [ox oy] (:direction creature)
         stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
@@ -67,13 +70,13 @@
         (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- height-in-characters 2))))
         (add-message (str "You decend to level " (inc (:dungeon-level creature)) "."))
         (ensure-floor k)
-        (allow-going-up-stairs k))))
+        (maybe-allow-going-up-stairs k))))
 
-(defn move-creature-upstairs [game k exit-screen]
+(defn move-upstairs [game k]
   (let [creature (get game k)
         [ox oy] (:direction creature)]
     (if (= 1 (:dungeon-level creature))
-      (swap-screen exit-screen)
+      (swap-screen (:exit-screen game))
       (-> (remove-enemies game)
           (merge (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
           (update-in [k :dungeon-level] dec)
@@ -81,6 +84,22 @@
           (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- height-in-characters 2))))
           (add-message (str "You acend to level " (inc (:dungeon-level creature)) "."))
           (ensure-floor k)))))
+
+(defn use-stairs [game k]
+  (if (not= :player k)
+    game
+    (let [creature (get game k)
+          [x y] [(:x creature) (:y creature)]]
+      (case (get-in game [:grid [x y]])
+        :stairs-down
+        (if (:going-up creature)
+          game
+          (move-downstairs game k))
+        :stairs-up
+        (if (:going-up creature)
+          (move-upstairs game k)
+          game)
+        game))))
 
 (defn open-door [game x y]
   (if (= :door (get-in game [:grid [x y]]))
@@ -104,10 +123,9 @@
         y (get-in game [k :y])
         direction [(- nx x) (- ny y)]
         target (get tiles (get-in game [:grid [nx ny]]) out-of-bounds)
-        other-id (for [[id e] game
-                       :when (and (= nx (:x e)) (= ny (:y e)))]
-                   id)]
-    (println "move-to" k other-id)
+        other-id (first (for [[id e] game
+                              :when (and (= nx (:x e)) (= ny (:y e)))]
+                          id))]
     (if (and (not (nil? other-id)) (not= k other-id))
       (attack-creature game k other-id)
       (if (:walkable target)
@@ -117,13 +135,9 @@
             (assoc-in [k :x] nx)
             (assoc-in [k :y] ny)
             (open-door nx ny)
-            (step-on-web k nx ny))
+            (step-on-web k nx ny)
+            (use-stairs k))
         game))))
-
-(defn move-by [game k mx my]
-  (let [x (get-in game [k :x])
-        y (get-in game [k :y])]
-    (move-to game k (+ x mx) (+ y my))))
 
 (defn consume-step [creature]
   (if (:is-knocked-back creature)

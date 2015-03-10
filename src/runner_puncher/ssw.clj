@@ -45,9 +45,7 @@
                                              ((:on-mouse-move options identity) e)
                                              (.repaint frame))))
       (.addMouseListener (proxy [MouseListener] []
-                           (mousePressed [e]
-                                         ((:on-mouse-press options identity) e)
-                                         (.repaint frame))
+                           (mousePressed [e])
                            (mouseClicked [e]
                                          ((:on-mouse-press options identity) e)
                                          (.repaint frame))
