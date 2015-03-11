@@ -125,7 +125,7 @@
   (map-keys #(mapv + % [ox oy]) room))
 
 (defn is-in-bounds? [x y]
-  (and (<= min-x x (- width-in-characters 2)) (<= min-y y (- height-in-characters 2))))
+  (and (<= min-x x (- (global :width-in-characters) 2)) (<= min-y y (- (global :height-in-characters) 2))))
 
 (defn is-valid-placement [grid room]
   (and (any? nil? (for [[xy _] room] (get grid xy)))
@@ -188,9 +188,9 @@
        (recur (inc ox) oy)
        (< oy min-y)
        (recur ox (inc oy))
-       (> (+ ox w 3) width-in-characters)
+       (> (+ ox w 3) (global :width-in-characters))
        (recur (dec ox) oy)
-       (> (+ oy h 3) height-in-characters)
+       (> (+ oy h 3) (global :height-in-characters))
        (recur ox (dec oy))
        :else
        (merge (position-room room ox oy)

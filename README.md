@@ -1,10 +1,16 @@
 # runner_puncher
 
-A Clojure library designed to ... well, that part is up to you.
+A 2015 7DRL by Trystan Spangler focused on running and punching.
+
+Bugs, complements, etc at http://7drl.org/tag/runner_puncher
 
 ## Usage
 
-FIXME
+    java -jar runner_puncher.jar
+
+It will try to use a window size that will fit your screen but you can specify the window and font size too:
+
+    java -jar runner_puncher.jar --window 640x480 --font 12x12
 
 ## License
 

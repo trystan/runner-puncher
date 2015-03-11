@@ -7,11 +7,20 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
-(def tile-width 10)
-(def tile-height 10)
-(def render-terminal (new-renderer 620 480 cp437-10x10))
-(def width-in-characters (int (/ 620 tile-width)))
-(def height-in-characters (int (/ 480 tile-height)))
+(def globals-atom (atom {}))
+
+(defn set-render-options [options]
+  (let [render-options { :file (str "cp437_" (:tile-width options) "x" (:tile-height options) ".png")
+                         :char-width (:tile-width options)
+                         :char-height (:tile-height options)}
+        derived-options {:render-terminal (new-renderer (:window-width options) (:window-height options) render-options)
+                         :width-in-characters (int (/ (:window-width options) (:tile-width options)))
+                         :height-in-characters (int (/ (:window-height options) (:tile-height options)))}]
+    (reset! globals-atom (merge derived-options
+                                options))))
+
+(defn global [k]
+  (k @globals-atom))
 
 (def red {:r 250 :g 0 :b 0})
 (def blue {:r 0 :g 0 :b 250})
@@ -19,7 +28,7 @@
 (def bg {:r 0 :g 0 :b 0})
 
 (defn add-center-string [t s y]
-  (let [x (int (/ (- width-in-characters (count s)) 2))]
+  (let [x (int (/ (- (global :width-in-characters) (count s)) 2))]
     (add-string t s x y fg nil)))
 
 
@@ -54,7 +63,7 @@
 
 (defn on-render [^Graphics graphics]
   (let [terminal ((:on-render (first @screen-stack-atom) identity))]
-    (render-terminal graphics terminal)))
+    ((global :render-terminal) graphics terminal)))
 
 (defn on-key-press [e]
   ((:on-key-press (first @screen-stack-atom) identity) e))
@@ -66,11 +75,11 @@
   ((:on-timer (first @screen-stack-atom) identity) e))
 
 
-(defn start-game [screen]
+(defn start-game [screen render-options]
+  (set-render-options render-options)
   (reset! screen-stack-atom (list screen))
   (new-super-simple-window {:title "RUNNER_PUNCHER"
-                            :height 480 :width 620
-                            ;:height 720 :width 1280
+                            :width (global :window-width) :height (global :window-height)
                             :on-render on-render
                             :on-key-press on-key-press
                             :on-mouse-move on-mouse-move

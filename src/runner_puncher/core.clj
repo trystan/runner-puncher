@@ -1,10 +1,11 @@
 (ns runner_puncher.core
-  (:import [java.awt Canvas Graphics]
+  (:import [java.awt Canvas Graphics Toolkit]
            [java.awt.event])
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.renderer :refer :all]
             [runner_puncher.worldgen :refer :all]
-            [runner_puncher.actions :refer :all]))
+            [runner_puncher.actions :refer :all])
+  (:gen-class))
 
 (declare start-screen play-screen win-screen lose-screen)
 
@@ -55,7 +56,8 @@
     (reduce add-one t points)))
 
 (defn render-hud [t player]
-  (let [heart-start (- width-in-characters (:max-health player) 1)
+  (let [width-in-characters (global :width-in-characters)
+        heart-start (- width-in-characters (:max-health player) 1)
         moves-start (- heart-start (:max-steps player) 3)]
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
@@ -79,7 +81,7 @@
            messages (filter #(= most-recent (:at %)) messages)
            y (if at-top
                min-y
-               (- height-in-characters (count messages)))]
+               (- (global :height-in-characters) (count messages)))]
       (if (empty? messages)
         t
         (recur
@@ -101,7 +103,7 @@
         (render-creature player)
         (render-target-fn)
         (render-hud player)
-        (render-messages (> (:y player) (* 0.75 height-in-characters)) (:messages game)))))
+        (render-messages (> (:y player) (* 0.75 (global :height-in-characters))) (:messages game)))))
 
 
 
@@ -132,7 +134,8 @@
 
 (defn mouse-move-play-screen [e]
   (when (empty? (get-in @game-atom [:player :path]))
-    (reset! player-target-atom [(int (/ (.getX e) tile-width)) (int (/ (.getY e) tile-height))])))
+    (reset! player-target-atom [(int (/ (.getX e) (global :tile-width)))
+                                (int (/ (.getY e) (global :tile-height)))])))
 
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)
@@ -157,7 +160,7 @@
 (def start-screen {:on-render (fn [] (-> {}
                                   (add-center-string "RUNNER_PUNCHER" 2)
                                   (add-center-string "A 2015 7DRL by Trystan Spangler" 3)
-                                  (add-center-string "-- press Enter to start --" (- height-in-characters 2))))
+                                  (add-center-string "-- press Enter to start --" (- (global :height-in-characters) 2))))
                    :on-key-press (fn [e]
                                   (case (to-keyword e)
                                     :enter (do
@@ -172,7 +175,7 @@
 
 (def win-screen {:on-render (fn [] (-> {}
                                        (add-center-string "You won" 2)
-                                       (add-center-string "-- press Enter to start again --" (- height-in-characters 2))))
+                                       (add-center-string "-- press Enter to start again --" (- (global :height-in-characters) 2))))
                  :on-key-press (fn [e]
                                 (case (to-keyword e)
                                   :enter (do
@@ -182,7 +185,7 @@
 
 (def lose-screen {:on-render (fn [] (-> {}
                                         (add-center-string "You lost" 2)
-                                        (add-center-string "-- press Enter to start again --" (- height-in-characters 2))))
+                                        (add-center-string "-- press Enter to start again --" (- (global :height-in-characters) 2))))
                   :on-key-press (fn [e]
                                  (case (to-keyword e)
                                    :enter (do
@@ -190,5 +193,25 @@
                                              (swap-screen play-screen))
                                    (println e)))})
 
-(defn -main []
-  (start-game start-screen))
+(defn round-down [x values]
+  (last (filter #(<= % x) values)))
+
+(defn to-int [string]
+  (Integer/parseInt string))
+
+(defn -main [& args]
+  (let [options (apply hash-map args)
+        screen-size (.getScreenSize (Toolkit/getDefaultToolkit))
+        [window-width window-height] (if-let [option (get options "--window")]
+                                       (mapv to-int (.split option "x"))
+                                       [(round-down (int (.getWidth screen-size)) [640 800 1280])
+                                        (round-down (int (.getHeight screen-size)) [480 600 720])])
+        [font-width font-height] (mapv to-int (.split (get options "--font" "10x10") "x"))]
+    (println "Using window size of" (str window-width "x" window-height) "and font size of" (str font-width "x" font-height))
+    (println "Use window and font switches to override. Font can be 9x16, 8x8, 10x10, and 12x12. Theres no error handling or sanity checks so don't be dumb.")
+    (println "Example: java -jar runner_puncher.jar --window 640x480 --font 12x12")
+    (start-game start-screen
+                {:window-width window-width
+                 :window-height window-height
+                 :tile-width font-width
+                 :tile-height font-height})))

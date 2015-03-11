@@ -7,4 +7,6 @@
   :plugins [[lein-git-deps "0.0.1-SNAPSHOT"]]
   :git-dependencies [["https://github.com/trystan/super-simple-window.git"]
                      ["https://github.com/trystan/terminal-render.git"]]
-  :main runner_puncher.core)
+  :main runner_puncher.core
+  :aot :all
+  :uberjar-name "runner_puncher.jar")
