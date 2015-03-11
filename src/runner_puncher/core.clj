@@ -13,8 +13,9 @@
   (let [g {:tick 0
            :exit-screen win-screen
            :messages []
-           :player {:id :player :knockback-amount 5
-                    :type :player :going-up false :path []
+           :player {:prefix "" :char "@" :fg {:r 250 :g 250 :b 250}
+                    :id :player :knockback-amount 5
+                    :is-creature true :going-up false :path []
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
@@ -39,8 +40,7 @@
   (reduce render-grid-tile t grid))
 
 (defn render-creature [t creature]
-  (let [c ((:type creature) creatures)]
-    (add-string t (:char c) (:x creature) (:y creature) (:fg c) nil)))
+  (add-string t (:char creature) (:x creature) (:y creature) (:fg creature) nil))
 
 (defn render-creatures [t creatures]
   (reduce render-creature t creatures))

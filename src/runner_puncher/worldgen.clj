@@ -31,17 +31,6 @@
                :fg (hsl 220  5 60)
                :bg (hsl 220 25  5)}})
 
-(def creatures
-  {:player {:char "@"
-            :fg {:r 250 :g 250 :b 250}}
-   :web-monster {:char "w"
-              :on-death [:replace-tiles {:floor :web-floor}]
-              :fg (hsl 0 66 66)}
-   :knockback-monster {:char "k"
-              :on-death [:knockback 3]
-              :fg (hsl 0 66 66)}})
-
-
 (defn room-to-tiles [room]
   (let [rows (seq (.split room "\n"))
         lookup {\# :wall
@@ -241,10 +230,17 @@
      (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
-  (rand-nth [{:is-creature true :type :web-monster :health 1 :steps-remaining 1 :max-steps 1 :knockback-amount 0
-              :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}
-             {:is-creature true :type :knockback-monster :health 1 :steps-remaining 1 :max-steps 1 :knockback-amount 3
-              :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]))
+  (let [default {:is-creature true
+                 :steps-remaining 1 :max-steps 1
+                 :health 1 :max-health 1
+                 :knockback-amount 0
+                 :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
+    (merge default (rand-nth [{:prefix "web" :char "w" :fg (hsl 0 66 66)
+                :on-death [:replace-tiles {:floor :web-floor}]}
+               {:prefix "knockback" :char "k" :fg (hsl 0 66 66)
+                :on-death [:knockback 3]}
+               {:prefix "growth" :char "g" :fg (hsl 0 66 66)
+                :on-death [:growth]}]))))
 
 (defn make-creatures [grid]
   (let [candidates (find-tiles :floor grid)

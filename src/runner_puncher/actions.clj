@@ -33,24 +33,30 @@
      :else (rest so-far))))
 
 (defn knockback-creature [game id dx dy]
-  (let [kb (fn [c] (-> c
-                       (assoc :is-knocked-back true)
-                       (assoc :path (until-blocked game (bresenham (:x c)
-                                                                   (:y c)
-                                                                   (+ dx (:x c))
-                                                                   (+ dy (:y c)))))))]
+  (let [kb (fn [c] (if (:immune-to-knockback c)
+                     c
+                     (-> c
+                         (assoc :is-knocked-back true)
+                         (assoc :path (until-blocked game (bresenham (:x c)
+                                                                     (:y c)
+                                                                     (+ dx (:x c))
+                                                                     (+ dy (:y c))))))))]
     (update-in game [id] kb)))
 
 (defn attack-creature [game id-from id-to]
-  (let [attacker (get game id-from)
-        attacked (get game id-to)
-        dx (- (:x attacked) (:x attacker))
-        dy (- (:y attacked) (:y attacker))
-        [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])]
+  (if (:is-knocked-back (get game id-from))
     (-> game
-        (assoc-in [id-from :path] [])
-        (update-in [id-to :health] dec)
-        (knockback-creature id-to dx dy))))
+        (assoc-in [id-from :is-knocked-back] false)
+        (assoc-in [id-from :path] []))
+    (let [attacker (get game id-from)
+          attacked (get game id-to)
+          dx (- (:x attacked) (:x attacker))
+          dy (- (:y attacked) (:y attacker))
+          [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])]
+      (-> game
+          (assoc-in [id-from :path] [])
+          (update-in [id-to :health] dec)
+          (knockback-creature id-to dx dy)))))
 
 (defn maybe-allow-going-up-stairs [game k]
   (let [creature (get game k)]
@@ -175,13 +181,22 @@
   (let [ids (map :id (enemies game))]
     (reduce move-enemy game ids)))
 
+(defn grow-creature [c]
+  (if (= (clojure.string/upper-case (:char c)) (:char c))
+    c
+    (-> c
+        (update :char clojure.string/upper-case)
+        (update :health inc)
+        (update :max-health inc)
+        (assoc :immune-to-knockback true))))
+
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
         y (:y creature)]
-    (case (first (:on-death (get creatures (:type creature))))
+    (case (first (:on-death creature))
       :replace-tiles
-      (let [replacements (second (:on-death (get creatures (:type creature))))
+      (let [replacements (second (:on-death creature))
             neighborhood (for [xo (range -1 2)
                                yo (range -1 2)]
                            [(+ x xo) (+ y yo)])
@@ -190,7 +205,7 @@
                          (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
         (reduce replace-fn game neighborhood))
       :knockback
-      (let [amount (second (:on-death (get creatures (:type creature))))
+      (let [amount (second (:on-death creature))
             neighborhood (for [xo (range -1 2)
                                yo (range -1 2)
                                :when (not= xo yo 0)]
@@ -200,11 +215,24 @@
                                             e)))
             affect-fn (fn [g xy]
                         (let [c (creature-at game xy)
-                              _ (println amount x y c)
                               dx (if c (* amount (- (:x c) x)) 0)
                               dy (if c (* amount (- (:y c) y)) 0)]
                           (if c
                             (knockback-creature g (:id c) dx dy)
+                            g)))]
+        (reduce affect-fn game neighborhood))
+      :growth
+      (let [neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)
+                               :when (not= xo yo 0)]
+                           [(+ x xo) (+ y yo)])
+            creature-at (fn [g xy] (first (for [[id e] g
+                                                :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
+                                            e)))
+            affect-fn (fn [g xy]
+                        (let [c (creature-at game xy)]
+                          (if c
+                            (update g (:id c) grow-creature)
                             g)))]
         (reduce affect-fn game neighborhood))
       game)))
