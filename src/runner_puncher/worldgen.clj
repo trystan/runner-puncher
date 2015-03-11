@@ -5,28 +5,34 @@
 (def min-y 1)
 (def final-floor-depth 10)
 
-(def out-of-bounds {:walkable false})
+(def out-of-bounds {:walkable false :name "unknown"})
 (def tiles
   {:floor {:char (str (char 250))
+           :name "floor"
            :walkable true
            :fg (hsl 220 25 50)
            :bg (hsl 220 25  5)}
    :wall {:char (str (char 4))
+          :name "wall"
           :fg (hsl 220 33 60)
           :bg (hsl 220 33 40)}
    :door {:char "+"
+          :name "door"
           :walkable true
           :fg (hsl 30 25 70)
           :bg (hsl 30 95 20)}
    :stairs-down {:char ">"
+                 :name "stairs down"
                  :walkable true
                  :fg (hsl 220 25 50)
                  :bg (hsl 220 25  5)}
    :stairs-up {:char "<"
-                 :walkable true
-                 :fg (hsl 220 25 50)
-                 :bg (hsl 220 25  5)}
+               :name "stairs up"
+               :walkable true
+               :fg (hsl 220 25 50)
+               :bg (hsl 220 25  5)}
    :web-floor {:char "#"
+               :name "web covered floor"
                :walkable true
                :fg (hsl 220  5 60)
                :bg (hsl 220 25  5)}})
@@ -235,12 +241,15 @@
                  :health 1 :max-health 1
                  :knockback-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
-    (merge default (rand-nth [{:prefix "web" :char "w" :fg (hsl 0 66 66)
-                :on-death [:replace-tiles {:floor :web-floor}]}
-               {:prefix "knockback" :char "k" :fg (hsl 0 66 66)
-                :on-death [:knockback 3]}
-               {:prefix "growth" :char "g" :fg (hsl 0 66 66)
-                :on-death [:growth]}]))))
+    (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 66 66)
+                               :description "Leaves webs behind when it dies."
+                               :on-death [:replace-tiles {:floor :web-floor}]}
+                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 0 66 66)
+                               :description "Knocks others back when it dies and when attacking."
+                               :on-death [:knockback 3] :knockback-amount 3}
+                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 0 66 66)
+                               :description "Embiggens others when it dies."
+                               :on-death [:embiggen]}]))))
 
 (defn make-creatures [grid]
   (let [candidates (find-tiles :floor grid)

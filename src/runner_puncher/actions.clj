@@ -2,6 +2,11 @@
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.worldgen :refer :all]))
 
+(defn creature-at [g xy]
+  (first (for [[id e] g
+               :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
+           e)))
+
 (defn enemies [game]
   (for [[k v] game :when (.startsWith (str k) ":enemy-")] v))
 
@@ -11,6 +16,12 @@
 (defn remove-enemies [game]
   (let [ids (map :id (enemies game))]
     (reduce dissoc game ids)))
+
+(defn end-movement [creature]
+  (-> creature
+      (assoc :path [])
+      (assoc :steps-remaining 0)
+      (assoc :is-knocked-back false)))
 
 (defn ensure-floor [game k]
   (let [creature (get game k)]
@@ -45,16 +56,14 @@
 
 (defn attack-creature [game id-from id-to]
   (if (:is-knocked-back (get game id-from))
-    (-> game
-        (assoc-in [id-from :is-knocked-back] false)
-        (assoc-in [id-from :path] []))
+    (update game id-from end-movement)
     (let [attacker (get game id-from)
           attacked (get game id-to)
           dx (- (:x attacked) (:x attacker))
           dy (- (:y attacked) (:y attacker))
           [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])]
       (-> game
-          (assoc-in [id-from :path] [])
+          (update id-from end-movement)
           (update-in [id-to :health] dec)
           (knockback-creature id-to dx dy)))))
 
@@ -114,16 +123,6 @@
         (add-message "You punch the door off its hinges."))
     game))
 
-(defn step-on-web [game k x y]
-  (if (and (not (:is-knocked-back (get game k)))
-           (= :web-floor (get-in game [:grid [x y]])))
-    (-> game
-        (assoc-in [:grid [x y]] :floor)
-        (assoc-in [k :path] [])
-        (assoc-in [k :steps-remaining] 0)
-        (add-message "You get stuck in the web."))
-    game))
-
 (defn move-to [game k nx ny]
   (let [x (get-in game [k :x])
         y (get-in game [k :y])
@@ -132,18 +131,24 @@
         other-id (first (for [[id e] game
                               :when (and (= nx (:x e)) (= ny (:y e)))]
                           id))]
-    (if (and (not (nil? other-id)) (not= k other-id))
-      (attack-creature game k other-id)
-      (if (:walkable target)
-        (-> game
-            (update :tick inc)
-            (assoc-in [k :direction] direction)
-            (assoc-in [k :x] nx)
-            (assoc-in [k :y] ny)
-            (open-door nx ny)
-            (step-on-web k nx ny)
-            (use-stairs k))
-        game))))
+    (cond
+     (and (not (:is-knocked-back (get game k)))
+          (= :web-floor (get-in game [:grid [x y]])))
+     (-> game
+         (assoc-in [:grid [x y]] :floor)
+         (update k end-movement)
+         (add-message "You free yourself from the web."))
+     (and (not (nil? other-id)) (not= k other-id))
+     (attack-creature game k other-id)
+     (:walkable target)
+     (-> game
+         (update :tick inc)
+         (assoc-in [k :direction] direction)
+         (assoc-in [k :x] nx)
+         (assoc-in [k :y] ny)
+         (open-door nx ny)
+         (use-stairs k))
+     :else game)))
 
 (defn consume-step [creature]
   (if (:is-knocked-back creature)
@@ -152,7 +157,7 @@
       creature)
     (let [creature (update creature :steps-remaining dec)]
       (if (< (:steps-remaining creature) 1)
-        (assoc creature :path [])
+        (end-movement creature)
         creature))))
 
 (defn move-by-path [game k]
@@ -181,10 +186,11 @@
   (let [ids (map :id (enemies game))]
     (reduce move-enemy game ids)))
 
-(defn grow-creature [c]
+(defn embiggen-creature [c]
   (if (= (clojure.string/upper-case (:char c)) (:char c))
     c
     (-> c
+        (update :prefix #(str "Giant " (clojure.string/lower-case %)))
         (update :char clojure.string/upper-case)
         (update :health inc)
         (update :max-health inc)
@@ -221,18 +227,14 @@
                             (knockback-creature g (:id c) dx dy)
                             g)))]
         (reduce affect-fn game neighborhood))
-      :growth
+      :embiggen
       (let [neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)
-                               :when (not= xo yo 0)]
+                               yo (range -1 2)]
                            [(+ x xo) (+ y yo)])
-            creature-at (fn [g xy] (first (for [[id e] g
-                                                :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
-                                            e)))
             affect-fn (fn [g xy]
                         (let [c (creature-at game xy)]
                           (if c
-                            (update g (:id c) grow-creature)
+                            (update g (:id c) embiggen-creature)
                             g)))]
         (reduce affect-fn game neighborhood))
       game)))

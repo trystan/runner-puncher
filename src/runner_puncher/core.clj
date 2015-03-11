@@ -9,11 +9,16 @@
 
 (declare start-screen play-screen win-screen lose-screen)
 
+(defn describe-creature [creature]
+  (let [d (:description creature)
+        d (str d (if (:immune-to-knockback creature) " Immune to knockback." ""))]
+    d))
+
 (defn new-game []
   (let [g {:tick 0
            :exit-screen win-screen
            :messages []
-           :player {:prefix "" :char "@" :fg {:r 250 :g 250 :b 250}
+           :player {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
                     :id :player :knockback-amount 5
                     :is-creature true :going-up false :path []
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
@@ -55,6 +60,13 @@
         add-one (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 40 40) (hsl 0 40 40))))]
     (reduce add-one t points)))
 
+(defn render-health [t current maximum x y]
+  (-> t
+      (add-string (apply str (repeat current (char 3)))
+                  x y red nil)
+      (add-string (apply str (repeat (- maximum current) (char 3)))
+                  (+ x current) y fg nil)))
+
 (defn render-hud [t player]
   (let [width-in-characters (global :width-in-characters)
         heart-start (- width-in-characters (:max-health player) 5 1)
@@ -75,10 +87,21 @@
                     (+ puncher-start 6) 0 blue nil)
 
         (add-string "live" heart-start 0 fg nil)
-        (add-string (apply str (repeat (:health player) (char 3)))
-                    (+ heart-start 5) 0 red nil)
-        (add-string (apply str (repeat (- (:max-health player) (:health player)) (char 3)))
-                    (+ heart-start 5 (:health player)) 0 fg nil))))
+        (render-health (:health player) (:max-health player) (+ heart-start 5) 0))))
+
+(defn render-target [t game mx my]
+  (let [c (creature-at game [mx my])
+        tile (get tiles (get-in game [:grid [mx my]]))
+        x 1
+        y (if (< my 5) 6 2)]
+    (if c
+      (-> t
+          (add-string (str (:prefix c) " " (:type c)) x (+ y 0) fg bg)
+          (render-health (:health c) (:max-health c) (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
+          (add-string (describe-creature c) x (+ y 1) fg bg)
+          (add-string (str "Standing on " (:name tile)) x (+ y 2) fg bg))
+      (-> t
+          (add-string (:name tile) 2 (+ y 0) fg bg)))))
 
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
@@ -108,6 +131,7 @@
         (render-creature player)
         (render-target-fn)
         (render-hud player)
+        (render-target game mx my)
         (render-messages (> (:y player) (* 0.75 (global :height-in-characters))) (:messages game)))))
 
 
