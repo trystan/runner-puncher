@@ -19,12 +19,13 @@
            :exit-screen win-screen
            :messages []
            :player {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
-                    :id :player :knockback-amount 5
+                    :description "Trying to find something on the 10th dungeon level."
+                    :id :player :knockback-amount 5 :poison-amount 0 :attack-damage 1
                     :is-creature true :going-up false :path []
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
-        (merge (generate-level 4 9 5 9 :stairs-up :stairs-down))
+        (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
         (add-message "You are RUNNER_PUNCHER."))))
 
 (def game-atom (atom new-game))
@@ -60,34 +61,37 @@
         add-one (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 40 40) (hsl 0 40 40))))]
     (reduce add-one t points)))
 
-(defn render-health [t current maximum x y]
+(defn render-counters [t current maximum poison c color x y]
   (-> t
-      (add-string (apply str (repeat current (char 3)))
-                  x y red nil)
-      (add-string (apply str (repeat (- maximum current) (char 3)))
-                  (+ x current) y fg nil)))
+      (add-string (apply str (repeat current c))
+                  x y color nil)
+      (add-string (apply str (repeat (- maximum current) c))
+                  (+ x current) y fg nil)
+      (add-string (apply str (repeat poison c))
+                  (+ x maximum) y green nil)))
+
+(defn render-health [t current maximum poison x y]
+  (render-counters t current maximum poison (char 3) red x y))
 
 (defn render-hud [t player]
   (let [width-in-characters (global :width-in-characters)
-        heart-start (- width-in-characters (:max-health player) 5 1)
-        puncher-start (- heart-start (:knockback-amount player) 6 3)
-        runner-start (- puncher-start (:max-steps player) 4 3)]
+        heart-start (- width-in-characters (:max-health player) (:poison-amount player) 5 1)
+        puncher-start (- heart-start (:knockback-amount player) (:poison-amount player) 6 3)
+        runner-start (- puncher-start (:max-steps player) (:poison-amount player) 4 3)]
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
         (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
 
         (add-string "run" runner-start 0 fg nil)
-        (add-string (apply str (repeat (:steps-remaining player) (char 4)))
-                    (+ runner-start 4) 0 blue nil)
-        (add-string (apply str (repeat (- (:max-steps player) (:steps-remaining player)) (char 4)))
-                    (+ runner-start 4 (:steps-remaining player)) 0 fg nil)
+        (render-counters (:steps-remaining player) (:max-steps player) (:poison-amount player)
+                         (char 4) blue (+ runner-start 4) 0)
 
         (add-string "punch" puncher-start 0 fg nil)
-        (add-string (apply str (repeat (:knockback-amount player) (char 7)))
-                    (+ puncher-start 6) 0 blue nil)
+        (render-counters (:knockback-amount player) (:knockback-amount player) (:poison-amount player)
+                         (char 7) blue (+ puncher-start 6) 0)
 
         (add-string "live" heart-start 0 fg nil)
-        (render-health (:health player) (:max-health player) (+ heart-start 5) 0))))
+        (render-health (:health player) (:max-health player) (:poison-amount player) (+ heart-start 5) 0))))
 
 (defn render-target [t game mx my]
   (let [c (creature-at game [mx my])
@@ -97,7 +101,8 @@
     (if c
       (-> t
           (add-string (str (:prefix c) " " (:type c)) x (+ y 0) fg bg)
-          (render-health (:health c) (:max-health c) (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
+          (render-health (:health c) (:max-health c) (:poison-amount c)
+                         (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
           (add-string (describe-creature c) x (+ y 1) fg bg)
           (add-string (str "Standing on " (:name tile)) x (+ y 2) fg bg))
       (-> t

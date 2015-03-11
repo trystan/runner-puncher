@@ -44,27 +44,64 @@
      :else (rest so-far))))
 
 (defn knockback-creature [game id dx dy]
-  (let [kb (fn [c] (if (:immune-to-knockback c)
-                     c
-                     (-> c
-                         (assoc :is-knocked-back true)
-                         (assoc :path (until-blocked game (bresenham (:x c)
-                                                                     (:y c)
-                                                                     (+ dx (:x c))
-                                                                     (+ dy (:y c))))))))]
-    (update-in game [id] kb)))
+  (if (= 0 dx dy)
+    game
+    (let [kb (fn [c] (if (:immune-to-knockback c)
+                       c
+                       (-> c
+                           (assoc :is-knocked-back true)
+                           (assoc :path (until-blocked game (bresenham (:x c)
+                                                                       (:y c)
+                                                                       (+ dx (:x c))
+                                                                       (+ dy (:y c))))))))]
+      (update-in game [id] kb))))
+
+(defn embiggen-creature [c]
+  (if (= (clojure.string/upper-case (:char c)) (:char c))
+    c
+    (-> c
+        (update :prefix #(str "Giant " (clojure.string/lower-case %)))
+        (update :char clojure.string/upper-case)
+        (update :health inc)
+        (update :max-health inc)
+        (assoc :immune-to-knockback true))))
+
+(defn poison-creature [c]
+  (-> c
+      (assoc :poison-amount (inc (:poison-amount c 0)))
+      (update :max-health dec)
+      (update :health dec)
+      (update :max-steps dec)
+      (update :knockback-amount dec)))
+
+(defn unpoison-creature-once [c]
+  (if (> (:poison-amount c 0) 0)
+    (-> c
+      (update :poison-amount dec)
+      (update :max-health inc)
+      (update :health inc)
+      (update :max-steps inc)
+      (update :knockback-amount inc))
+    c))
 
 (defn attack-creature [game id-from id-to]
+  (println "** attack **")
+  (println (get game id-from))
+  (println (get game id-to))
   (if (:is-knocked-back (get game id-from))
     (update game id-from end-movement)
     (let [attacker (get game id-from)
           attacked (get game id-to)
           dx (- (:x attacked) (:x attacker))
           dy (- (:y attacked) (:y attacker))
-          [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])]
+          [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])
+          affect-fn (if (= [:poison] (:on-attack attacker))
+                      poison-creature
+                      identity)]
       (-> game
           (update id-from end-movement)
-          (update-in [id-to :health] dec)
+          (update id-to affect-fn)
+          (update-in [id-to :health] #(- % (:attack-damage attacker)))
           (knockback-creature id-to dx dy)))))
 
 (defn maybe-allow-going-up-stairs [game k]
@@ -79,8 +116,9 @@
         stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
         stairs-to (if (= final-floor-depth (:dungeon-level creature)) :stairs-up :stairs-down)]
     (-> (remove-enemies game)
-        (merge (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
+        (merge (generate-level (inc (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
         (update-in [k :dungeon-level] inc)
+        (update-in [k] unpoison-creature-once)
         (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
         (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
         (add-message (str "You decend to level " (inc (:dungeon-level creature)) "."))
@@ -93,8 +131,9 @@
     (if (= 1 (:dungeon-level creature))
       (swap-screen (:exit-screen game))
       (-> (remove-enemies game)
-          (merge (generate-level (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
+          (merge (generate-level (dec (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
           (update-in [k :dungeon-level] dec)
+          (update-in [k] unpoison-creature-once)
           (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
           (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
           (add-message (str "You acend to level " (inc (:dungeon-level creature)) "."))
@@ -186,16 +225,6 @@
   (let [ids (map :id (enemies game))]
     (reduce move-enemy game ids)))
 
-(defn embiggen-creature [c]
-  (if (= (clojure.string/upper-case (:char c)) (:char c))
-    c
-    (-> c
-        (update :prefix #(str "Giant " (clojure.string/lower-case %)))
-        (update :char clojure.string/upper-case)
-        (update :health inc)
-        (update :max-health inc)
-        (assoc :immune-to-knockback true))))
-
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
@@ -235,6 +264,17 @@
                         (let [c (creature-at game xy)]
                           (if c
                             (update g (:id c) embiggen-creature)
+                            g)))]
+        (reduce affect-fn game neighborhood))
+      :poison
+      (let [neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)
+                               :when (not= xo yo 0)]
+                           [(+ x xo) (+ y yo)])
+            affect-fn (fn [g xy]
+                        (let [c (creature-at game xy)]
+                          (if c
+                            (update g (:id c) poison-creature)
                             g)))]
         (reduce affect-fn game neighborhood))
       game)))

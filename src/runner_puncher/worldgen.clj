@@ -238,24 +238,30 @@
 (defn new-enemy [[x y]]
   (let [default {:is-creature true
                  :steps-remaining 1 :max-steps 1
-                 :health 1 :max-health 1
-                 :knockback-amount 0
+                 :health 1 :max-health 1 :attack-damage 1
+                 :knockback-amount 0 :poison-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
     (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 66 66)
                                :description "Leaves webs behind when it dies."
-                               :on-death [:replace-tiles {:floor :web-floor}]}
+                               :on-death [:replace-tiles {:floor :web-floor}]
+                               :on-attack [:replace-tiles {:floor :web-floor}]}
                               {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 0 66 66)
-                               :description "Knocks others back when it dies and when attacking."
+                               :description "Knocks others back when it dies or attacks."
                                :on-death [:knockback 3] :knockback-amount 3}
+                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 0 66 66)
+                               :description "Poisons others when it dies or attacks."
+                               :on-death [:poison]
+                               :on-attack [:poison]
+                               :attack-damage 0}
                               {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 0 66 66)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}]))))
 
-(defn make-creatures [grid]
+(defn make-creatures [grid depth]
   (let [candidates (find-tiles :floor grid)
-        positions (take 12 (shuffle candidates))]
+        positions (take (+ 10 (* 2 depth)) (shuffle candidates))]
     (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
 
-(defn generate-level [stairs-x stairs-y start-x start-y stairs-from stairs-to]
+(defn generate-level [depth stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)]
-    (merge {:grid grid} (make-creatures grid))))
+    (merge {:grid grid} (make-creatures grid depth))))
