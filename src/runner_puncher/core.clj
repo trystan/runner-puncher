@@ -57,23 +57,28 @@
 
 (defn render-hud [t player]
   (let [width-in-characters (global :width-in-characters)
-        heart-start (- width-in-characters (:max-health player) 1)
-        moves-start (- heart-start (:max-steps player) 3)]
+        heart-start (- width-in-characters (:max-health player) 5 1)
+        puncher-start (- heart-start (:knockback-amount player) 6 3)
+        runner-start (- puncher-start (:max-steps player) 4 3)]
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
         (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
 
-        (add-string (str "?: help") (- moves-start 10) 0 fg nil)
-
+        (add-string "run" runner-start 0 fg nil)
         (add-string (apply str (repeat (:steps-remaining player) (char 4)))
-                    moves-start 0 blue nil)
+                    (+ runner-start 4) 0 blue nil)
         (add-string (apply str (repeat (- (:max-steps player) (:steps-remaining player)) (char 4)))
-                    (+ moves-start (:steps-remaining player)) 0 fg nil)
+                    (+ runner-start 4 (:steps-remaining player)) 0 fg nil)
 
+        (add-string "punch" puncher-start 0 fg nil)
+        (add-string (apply str (repeat (:knockback-amount player) (char 7)))
+                    (+ puncher-start 6) 0 blue nil)
+
+        (add-string "live" heart-start 0 fg nil)
         (add-string (apply str (repeat (:health player) (char 3)))
-                    heart-start 0 red nil)
+                    (+ heart-start 5) 0 red nil)
         (add-string (apply str (repeat (- (:max-health player) (:health player)) (char 3)))
-                    (+ heart-start (:health player)) 0 fg nil))))
+                    (+ heart-start 5 (:health player)) 0 fg nil))))
 
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]

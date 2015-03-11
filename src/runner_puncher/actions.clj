@@ -189,6 +189,24 @@
             replace-fn (fn [g xy]
                          (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
         (reduce replace-fn game neighborhood))
+      :knockback
+      (let [amount (second (:on-death (get creatures (:type creature))))
+            neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)
+                               :when (not= xo yo 0)]
+                           [(+ x xo) (+ y yo)])
+            creature-at (fn [g xy] (first (for [[id e] g
+                                                :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
+                                            e)))
+            affect-fn (fn [g xy]
+                        (let [c (creature-at game xy)
+                              _ (println amount x y c)
+                              dx (if c (* amount (- (:x c) x)) 0)
+                              dy (if c (* amount (- (:y c) y)) 0)]
+                          (if c
+                            (knockback-creature g (:id c) dx dy)
+                            g)))]
+        (reduce affect-fn game neighborhood))
       game)))
 
 (defn remove-dead-creatures [game]
