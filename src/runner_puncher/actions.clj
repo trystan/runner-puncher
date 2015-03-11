@@ -277,6 +277,18 @@
                             (update g (:id c) poison-creature)
                             g)))]
         (reduce affect-fn game neighborhood))
+      :damage
+      (let [amount (second (:on-death creature))
+            neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)
+                               :when (not= xo yo 0)]
+                           [(+ x xo) (+ y yo)])
+            affect-fn (fn [g xy]
+                        (let [c (creature-at game xy)]
+                          (if c
+                            (update-in g [(:id c) :health] dec)
+                            g)))]
+        (reduce affect-fn game neighborhood))
       game)))
 
 (defn remove-dead-creatures [game]

@@ -253,6 +253,10 @@
                                :on-death [:poison]
                                :on-attack [:poison]
                                :attack-damage 0}
+                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 0 66 66)
+                               :description "Does extra damage to others when it dies or attacks."
+                               :on-death [:damage 1]
+                               :attack-damage 2}
                               {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 0 66 66)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}]))))
