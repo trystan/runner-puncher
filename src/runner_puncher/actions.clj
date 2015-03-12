@@ -10,8 +10,8 @@
 (defn enemies [game]
   (for [[k v] game :when (.startsWith (str k) ":enemy-")] v))
 
-(defn item-at [g xy]
-  (first (for [[id e] g
+(defn item-at [game xy]
+  (first (for [[id e] game
                :when (and (:is-item e) (= xy [(:x e) (:y e)]))]
            e)))
 
@@ -34,6 +34,10 @@
       (into game [[(:id c) c]])
       game)))
 
+(defn remove-items [game]
+  (let [ids (map :id (items game))]
+    (reduce dissoc game ids)))
+
 (defn remove-enemies [game]
   (let [ids (map :id (enemies game))]
     (reduce dissoc game ids)))
@@ -43,10 +47,6 @@
       (assoc :path [])
       (assoc :steps-remaining 0)
       (assoc :is-knocked-back false)))
-
-(defn ensure-floor [game k]
-  (let [creature (get game k)]
-    (assoc-in game [:graph [(:x creature) (:y creature)]] :floor)))
 
 (defn until-blocked [game points]
   (loop [so-far []
@@ -135,33 +135,45 @@
       game)))
 
 (defn move-downstairs [game k]
-  (let [creature (get game k)
-        [ox oy] (:direction creature)
-        stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
-        stairs-to (if (= final-floor-depth (:dungeon-level creature)) :stairs-up :stairs-down)]
-    (-> (remove-enemies game)
-        (merge (generate-level (inc (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
-        (update-in [k :dungeon-level] inc)
-        (update-in [k] unpoison-creature-once)
-        (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
-        (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
-        (add-message (str "You decend to level " (inc (:dungeon-level creature)) "."))
-        (ensure-floor k)
-        (maybe-allow-going-up-stairs k))))
+  (push-screen (:store-screen game))
+  game)
 
 (defn move-upstairs [game k]
   (let [creature (get game k)
         [ox oy] (:direction creature)]
     (if (= 1 (:dungeon-level creature))
       (swap-screen (:exit-screen game))
-      (-> (remove-enemies game)
-          (merge (generate-level (dec (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
-          (update-in [k :dungeon-level] dec)
-          (update-in [k] unpoison-creature-once)
-          (update-in [k :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
-          (update-in [k :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
-          (add-message (str "You acend to level " (inc (:dungeon-level creature)) "."))
-          (ensure-floor k)))))
+      (push-screen (:store-screen game))))
+  game)
+
+(defn exit-store-downstairs [game]
+  (let [creature (get game :player)
+        [ox oy] (:direction creature)
+        stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
+        stairs-to (if (= final-floor-depth (:dungeon-level creature)) :stairs-up :stairs-down)]
+    (-> game
+        (remove-enemies)
+        (remove-items)
+        (merge (generate-level (inc (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
+        (update-in [:player :dungeon-level] inc)
+        (update-in [:player] unpoison-creature-once)
+        (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
+        (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
+        (add-message (str "You decend to level " (inc (:dungeon-level creature)) "."))
+        (maybe-allow-going-up-stairs :player))))
+
+(defn exit-store-upstairs [game]
+  (let [creature (get game :player)
+        [ox oy] (:direction creature)]
+    (-> game
+        (remove-enemies)
+        (remove-items)
+        (merge (generate-level (dec (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
+        (update-in [:player :dungeon-level] dec)
+        (update-in [:player] unpoison-creature-once)
+        (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
+        (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
+        (add-message (str "You acend to level " (inc (:dungeon-level creature)) ".")))))
 
 (defn use-stairs [game k]
   (if (not= :player k)
