@@ -218,49 +218,19 @@
                   :on-mouse-move mouse-move-play-screen
                   :on-timer update-play-screen})
 
-(defn random-item []
-  (let [prefix (rand-nth [{:name "heavy" :description "Reduce movement by 2."}
-                          {:name "sturdy" :description "Immune to acid."}])
-        prefix (if (< (rand) 0.66) nil prefix)
-        noun (rand-nth ["boots" "heels" "sandals" "shoes"
-                        "armor" "cloak" "tunic" "dress"
-                        "tiara" "helm" "hat"
-                        "gauntlets" "knuckles"])
-        postfix (rand-nth [{:name "of running" :description "Increase movement by 2."}
-                           {:name "of punching" :description "Increase knockback by 2."}
-                           {:name "of life" :description "Increase life by 1."}
-                           {:name "of standing" :description "Resist knockback 50%."}
-                           {:name "of vitality" :description "Immunity to poison."}
-                           {:name "of charming" :description "Lower shop item costs by $3."}
-                           {:name "of protection" :description "Reduce damage by 1 to minimum of 1."}
-                           {:name "of webwalking" :description "Immunity to webs."}])
-        postfix (if (< (rand) 0.33) nil postfix)
-        item-name noun
-        item-name (if prefix (str (:name prefix) " " item-name) item-name)
-        item-name (if postfix (str item-name " " (:name postfix)) item-name)
-        description ""
-        description (if postfix (str description " " (:description postfix)) description)
-        description (if prefix (str description " " (:description prefix)) description)]
-  {:price 0 :name item-name :description description}))
-
-(defn fix-store-prices [items]
-  (vec (for [i (range 0 (count items))]
-         (assoc (nth items i) :price (+ 5 (* 2 i))))))
-
-(def store-atom (atom (fix-store-prices (vec (repeatedly 10 random-item)))))
-
-(defn apply-purchace [game item]
-  game)
-
 (defn render-store-item [t [index item]]
   (if item
     (-> t
-        (add-string (str (inc index) ". ($" (:price item) ") " (:name item)) 5 (+ (* 2 index) 7) light nil)
-        (add-string (str "    " (:description item)) 5 (+ (* 2 index) 8) fg nil))
-    (add-string t (str index ". -- out of stock --") 5 (+ (* 2 index) 7) fg nil)))
+        (add-string (str (inc index) ". ($" (:price item) ") " (:name item)) 5 (+ (* 3 index) 7) light nil)
+        (add-string (str "    " (:description item)) 5 (+ (* 3 index) 8) fg nil))
+    (add-string t (str (inc index) ". -- out of stock --") 5 (+ (* 3 index) 7) fg nil)))
 
 (defn render-store-items [t items]
   (reduce render-store-item t (for [i (range 0 (count items))] [i (nth items i)])))
+
+(defn maybe-buy-item [index]
+  (swap! game-atom apply-purchace (get @game-atom index))
+  (swap! store-atom assoc index nil))
 
 (def store-screen {:on-render (fn [] (-> {}
                                        (add-center-string "Welcome to the store between levels!" 2)
@@ -270,33 +240,15 @@
                                        (add-center-string "-- press Enter to go to the next level --" (- (global :height-in-characters) 2))))
                  :on-key-press (fn [e]
                                 (case (to-keyword e)
-                                  :1 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 0))
-                                       (swap! store-atom assoc 0 nil))
-                                  :2 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 1))
-                                       (swap! store-atom assoc 1 nil))
-                                  :3 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 2))
-                                       (swap! store-atom assoc 2 nil))
-                                  :4 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 3))
-                                       (swap! store-atom assoc 3 nil))
-                                  :5 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 4))
-                                       (swap! store-atom assoc 4 nil))
-                                  :6 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 5))
-                                       (swap! store-atom assoc 5 nil))
-                                  :7 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 6))
-                                       (swap! store-atom assoc 6 nil))
-                                  :8 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 7))
-                                       (swap! store-atom assoc 7 nil))
-                                  :9 (do
-                                       (swap! game-atom apply-purchace (get @game-atom 8))
-                                       (swap! store-atom assoc 8 nil))
+                                  :1 (maybe-buy-item 0)
+                                  :2 (maybe-buy-item 1)
+                                  :3 (maybe-buy-item 2)
+                                  :4 (maybe-buy-item 3)
+                                  :5 (maybe-buy-item 4)
+                                  :6 (maybe-buy-item 5)
+                                  :7 (maybe-buy-item 6)
+                                  :8 (maybe-buy-item 7)
+                                  :9 (maybe-buy-item 8)
                                   :enter (do
                                            (pop-screen)
                                            (if (get-in @game-atom [:player :going-up])

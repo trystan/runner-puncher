@@ -369,6 +369,12 @@
                               {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 240 66 66)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}]))))
+(defn make-amulet [[x y]]
+  {:is-item true :name "amulet" :char "*" :fg (hsl 80 99 99)
+   :description "The reason you are down here."
+   :effect [:allow-going-up-stairs]
+   :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))})
+
 (defn new-treasure [[x y]]
   (let [default {:is-item true
                  :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))}]
@@ -385,6 +391,16 @@
         positions (take (+ 10 (* 2 depth)) (shuffle candidates))]
     (into {} (for [t (map new-treasure positions)] [(:id t) t]))))
 
+(defn replace-down-stairs-with-amulet [grid]
+  (let [candidates (find-tiles :stairs-down grid)
+        target (rand-nth candidates)
+        grid (reduce (fn [g xy] (assoc g xy :floor)) grid candidates)
+        amulet (make-amulet target)]
+    [grid {(:id amulet) amulet}]))
+
 (defn generate-level [depth stairs-x stairs-y start-x start-y stairs-from stairs-to]
-  (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)]
-    (merge {:grid grid} (make-creatures grid depth) (make-treasures grid depth))))
+  (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)
+        [grid amulet] (if (= final-floor-depth depth)
+                        (replace-down-stairs-with-amulet grid)
+                        [grid {}])]
+    (merge {:grid grid} (make-creatures grid depth) (make-treasures grid depth) amulet)))
