@@ -207,7 +207,11 @@
         "######...######\n"
         "#######+#######")]))))
 
-(defn room-list [] (mapv room-to-tiles room-list-1))
+(defn room-list []
+  (mapv room-to-tiles room-list-1))
+
+(defn get-random-room []
+  (rand-nth (room-list)))
 
 (defn find-tiles [tile grid]
   (for [[xy t] grid :when (= t tile)] xy))
@@ -262,8 +266,8 @@
                 [rx ry] (find-tiles :door room)]
             (place-room grid room gx gy rx ry))))
 
-(defn grow-levels [levels]
-  (mapcat #(add-one-room % (room-list)) levels))
+(defn grow-levels [levels number]
+  (mapcat #(add-one-room % (take number (shuffle (room-list)))) levels))
 
 (defn position-start-room [room stairs-x stairs-y start-x start-y stairs]
   (let [w (- (apply max (map first (map first room))) 2)
@@ -282,16 +286,18 @@
             (- stairs-y h 2)
             :else
             (- start-y (rand-int h) 1))]
-    (loop [ox ox oy oy]
+    (loop [room room ox ox oy oy]
       (cond
        (< ox min-x)
-       (recur (inc ox) oy)
+       (recur room (inc ox) oy)
        (< oy min-y)
-       (recur ox (inc oy))
+       (recur room ox (inc oy))
        (> (+ ox w 3) (global :width-in-characters))
-       (recur (dec ox) oy)
+       (recur room (dec ox) oy)
        (> (+ oy h 3) (global :height-in-characters))
-       (recur ox (dec oy))
+       (recur room ox (dec oy))
+       (not (:walkable (get tiles (get-in (position-room room ox oy) [[start-x start-y]]))))
+       (position-start-room (get-random-room) stairs-x stairs-y start-x start-y stairs)
        :else
        (merge (position-room room ox oy)
               {[start-x start-y] :floor}
@@ -326,17 +332,16 @@
                [[x y] tile]))))
 
 (defn generate-grid [stairs-x stairs-y start-x start-y stairs-from stairs-to]
-  (loop [levels (take 2 (shuffle (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))))
+  (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (take 2 (shuffle (room-list))))
          rooms-remaining 4]
-    (println (count levels))
     (cond
      (= 0 (count levels))
-     (recur (take 2 (shuffle (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))))
+     (recur (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (take 2 (shuffle (room-list))))
             2)
      (= 0 rooms-remaining)
      (fix-tiles (add-end-stairs (rand-nth levels) stairs-to))
      :else
-     (recur (take 2 (shuffle (grow-levels levels)))
+     (recur (take 5 (grow-levels levels 2))
             (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
@@ -367,7 +372,7 @@
 
 (defn make-creatures [grid depth]
   (let [candidates (find-tiles :floor grid)
-        positions (take (+ 10 (* 2 depth)) (shuffle candidates))]
+        positions (take (+ 8 (* 4 depth)) (shuffle candidates))]
     (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
 
 (defn generate-level [depth stairs-x stairs-y start-x start-y stairs-from stairs-to]

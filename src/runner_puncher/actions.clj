@@ -91,9 +91,6 @@
     c))
 
 (defn attack-creature [game id-from id-to]
-  (println "** attack **")
-  (println (get game id-from))
-  (println (get game id-to))
   (if (:is-knocked-back (get game id-from))
     (update game id-from end-movement)
     (let [attacker (get game id-from)
