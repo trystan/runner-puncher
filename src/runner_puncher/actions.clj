@@ -10,8 +10,29 @@
 (defn enemies [game]
   (for [[k v] game :when (.startsWith (str k) ":enemy-")] v))
 
+(defn item-at [g xy]
+  (first (for [[id e] g
+               :when (and (:is-item e) (= xy [(:x e) (:y e)]))]
+           e)))
+
+(defn items [game]
+  (for [[k v] game :when (:is-item v)] v))
+
 (defn add-message [game message]
   (update game :messages #(conj % {:text message :at (:tick game)})))
+
+(defn nearby [x1 y1 x2 y2 minimum maximum]
+  (let [distance-squared (+ (Math/pow (- x1 x2) 2) (Math/pow (- y1 y2) 2))]
+    (<= (* minimum minimum) distance-squared (* maximum maximum))))
+
+(defn spawn-creature-near [game x y]
+  (let [candidates (filter (fn [[x2 y2]] (nearby x y x2 y2 4 9)) (find-tiles :floor (:grid game)))
+        c (if (empty? candidates)
+            nil
+            (new-enemy (rand-nth candidates)))]
+    (if c
+      (into game [[(:id c) c]])
+      game)))
 
 (defn remove-enemies [game]
   (let [ids (map :id (enemies game))]
@@ -165,14 +186,24 @@
         (add-message "You punch the door off its hinges."))
     game))
 
+(defn pickup-item [game k]
+  (let [x (get-in game [k :x])
+        y (get-in game [k :y])
+        item (item-at game [x y])]
+    (if (and (= :player k) item)
+      (-> game
+          (update-in [k :inventory] conj item)
+          (dissoc (:id item))
+          (update k end-movement)
+          (spawn-creature-near (+ 2 x) (+ 2 y)))
+      game)))
+
 (defn move-to [game k nx ny]
   (let [x (get-in game [k :x])
         y (get-in game [k :y])
         direction [(- nx x) (- ny y)]
         target (get tiles (get-in game [:grid [nx ny]]) out-of-bounds)
-        other-id (first (for [[id e] game
-                              :when (and (= nx (:x e)) (= ny (:y e)))]
-                          id))]
+        other-id (:id (creature-at game [nx ny]))]
     (cond
      (and (not (:is-knocked-back (get game k)))
           (= :web-floor (get-in game [:grid [x y]])))
@@ -185,11 +216,12 @@
      (:walkable target)
      (-> game
          (update :tick inc)
+         (open-door nx ny)
          (assoc-in [k :direction] direction)
          (assoc-in [k :x] nx)
          (assoc-in [k :y] ny)
-         (open-door nx ny)
-         (use-stairs k))
+         (use-stairs k)
+         (pickup-item k))
      :else game)))
 
 (defn consume-step [creature]

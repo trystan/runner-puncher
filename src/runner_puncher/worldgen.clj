@@ -337,11 +337,11 @@
     (cond
      (= 0 (count levels))
      (recur (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (take 2 (shuffle (room-list))))
-            2)
+            4)
      (= 0 rooms-remaining)
      (fix-tiles (add-end-stairs (rand-nth levels) stairs-to))
      :else
-     (recur (take 5 (grow-levels levels 2))
+     (recur (take 2 (grow-levels levels 2))
             (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
@@ -369,12 +369,22 @@
                               {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 240 66 66)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}]))))
+(defn new-treasure [[x y]]
+  (let [default {:is-item true
+                 :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))}]
+    (merge default (rand-nth [{:name "gold" :char "$" :fg (hsl 60 50 50)
+                               :description "Good for buying things."}]))))
 
 (defn make-creatures [grid depth]
   (let [candidates (find-tiles :floor grid)
         positions (take (+ 8 (* 4 depth)) (shuffle candidates))]
     (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
 
+(defn make-treasures [grid depth]
+  (let [candidates (find-tiles :floor grid)
+        positions (take (+ 10 (* 2 depth)) (shuffle candidates))]
+    (into {} (for [t (map new-treasure positions)] [(:id t) t]))))
+
 (defn generate-level [depth stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)]
-    (merge {:grid grid} (make-creatures grid depth))))
+    (merge {:grid grid} (make-creatures grid depth) (make-treasures grid depth))))

@@ -23,6 +23,7 @@
                     :id :player :knockback-amount 5 :poison-amount 0 :attack-damage 1
                     :is-creature true :going-up false :path []
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
+                    :inventory []
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
         (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
@@ -44,6 +45,12 @@
 
 (defn render-grid [t grid]
   (reduce render-grid-tile t grid))
+
+(defn render-item [t item]
+  (add-string t (:char item) (:x item) (:y item) (:fg item) nil))
+
+(defn render-items [t items]
+  (reduce render-item t items))
 
 (defn render-creature [t creature]
   (add-string t (:char creature) (:x creature) (:y creature) (:fg creature) nil))
@@ -81,6 +88,8 @@
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
         (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
+
+        (add-string (str "$" (count (filter #(= (:name %) "gold") (:inventory player)))) (- runner-start 4) 0 (hsl 60 50 50) nil)
 
         (add-string "run" runner-start 0 fg nil)
         (render-counters (:steps-remaining player) (:max-steps player) (:poison-amount player)
@@ -132,6 +141,7 @@
                            #(render-player-path % (:path player)))]
     (-> {}
         (render-grid (:grid game))
+        (render-items (items game))
         (render-creatures (enemies game))
         (render-creature player)
         (render-target-fn)
