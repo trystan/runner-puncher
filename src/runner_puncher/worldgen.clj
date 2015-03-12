@@ -45,67 +45,169 @@
                 \1 (rand-nth [:floor :floor :floor :wall])
                 \2 (rand-nth [:floor :floor :floor :wall])
                 \3 (rand-nth [:floor :floor :floor :wall])
-                \4 (rand-nth [:floor :floor :floor :wall])}]
+                \4 (rand-nth [:floor :floor :floor :wall])
+                \5 (rand-nth [:floor :floor :floor :wall])
+                \8 (rand-nth [:door :wall])
+                \9 (rand-nth [:door :wall])}]
     (into {} (for [x (range (count (first rows)))
                    y (range (count rows))]
                [[x y] (lookup (nth (nth rows y) x))]))))
 
+(defn flip-v [r]
+  (let [rows (clojure.string/split r #"\n")
+        h (count rows)
+        new-rows (for [y (range 0 h)]
+                   (apply str (reverse (nth rows y))))]
+    (clojure.string/join "\n" new-rows)))
 
-(defn room-list [] (mapv room-to-tiles
-  [(str "######+######\n"
-        "#1111...2222#\n"
-        "#11.......22#\n"
-        "#1.........2#\n"
-        "#1.........2#\n"
-        "#...........#\n"
-        "+...........+\n"
-        "#...........#\n"
-        "#...........#\n"
-        "#4.........3#\n"
-        "#4.........3#\n"
-        "#44.......33#\n"
-        "#4444...3333#\n"
-        "######+######")
-   (str "####+####+####\n"
+(defn flip-h [r]
+  (let [rows (clojure.string/split r #"\n")]
+    (clojure.string/join "\n" (reverse rows))))
+
+(defn rotate [r]
+  (let [rows (clojure.string/split r #"\n")
+        h (count rows)
+        w (count (first rows))
+        turned (for [x (range 0 w)]
+                 (for [y (range 0 h)]
+                   (.charAt (nth (reverse rows) y) x)))
+        turned (map #(clojure.string/join "" %) turned)]
+    (clojure.string/join "\n" turned)))
+
+(def room-list-1
+  (apply list (set (mapcat (juxt flip-v (comp rotate flip-v) (comp rotate rotate flip-v) (comp rotate rotate rotate flip-v)
+                                 flip-h (comp rotate flip-h) (comp rotate rotate flip-h) (comp rotate rotate rotate flip-h)
+                                 identity rotate (comp rotate rotate) (comp rotate rotate rotate))
+  [(str "#######+#######\n"
+        "#1111.....2222#\n"
+        "#11.........22#\n"
+        "#1...........2#\n"
+        "#1...........2#\n"
+        "#.............#\n"
+        "#.............#\n"
+        "+.............+\n"
+        "#.............#\n"
+        "#.............#\n"
+        "#4...........3#\n"
+        "#4...........3#\n"
+        "#44.........33#\n"
+        "#4444.....3333#\n"
+        "#######+#######")
+   (str "####8####+####\n"
         "#222......222#\n"
         "#22...33...22#\n"
         "#2..........2#\n"
         "+...4....4...+\n"
-        "#............#\n"
-        "#.3...11...3.#\n"
-        "#.3...11...3.#\n"
-        "#............#\n"
+        "#.....11.....#\n"
+        "#.3..1111..3.#\n"
+        "#.3..1111..3.#\n"
+        "#.....11.....#\n"
         "+...4....4...+\n"
         "#2..........2#\n"
         "#22...33...22#\n"
         "#222......222#\n"
-        "####+####+####")
-   (str "####+####+####+####\n"
+        "####+####9####")
+   (str "####8####+####9####\n"
         "#1....2.....2....1#\n"
-        "#.......333.......#\n"
-        "+..44...333...44..+\n"
-        "#.......333.......#\n"
+        "#..44...333...44..#\n"
+        "+.4444.53335.4444.+\n"
+        "#..44...333...44..#\n"
         "#1....2.....2....1#\n"
-        "####+####+####+####")
-   (str "###+###\n"
-        "#1...1#\n"
-        "#.....#\n"
-        "#..4..#\n"
-        "+..4..+\n"
-        "#.....#\n"
-        "#2...2#\n"
-        "#.....#\n"
-        "#.333.#\n"
-        "+.333.+\n"
-        "#.333.#\n"
-        "#.....#\n"
-        "#2...2#\n"
-        "#.....#\n"
-        "+..4..+\n"
-        "#..4..#\n"
-        "#.....#\n"
-        "#1...1#\n"
-        "###+###")]))
+        "####9####+####8####")
+   (str "#####8####9####8#####\n"
+        "#11...............11#\n"
+        "#1......33333......1#\n"
+        "8.......33333.......9\n"
+        "#.......33333.......#\n"
+        "#...................#\n"
+        "#.....222###222.....#\n"
+        "#.....2#######2.....#\n"
+        "9.....2#######2.....8\n"
+        "#.....#########.....#\n"
+        "#4...4#########4...4#\n"
+        "###+#############+###")
+   (str "###+###8###9##\n"
+        "#1...2...2..1#\n"
+        "+............9\n"
+        "#............#\n"
+        "##33333333..2#\n"
+        "###3333333...#\n"
+        "####333333...8\n"
+        "#####33333...#\n"
+        "######3333..2#\n"
+        "#######333...#\n"
+        "########33...+\n"
+        "#########3...#\n"
+        "##########..1#\n"
+        "###########+##")
+   (str "###9####8########\n"
+        "#..........######\n"
+        "#..........######\n"
+        "+..........######\n"
+        "#..........1#####\n"
+        "#..........11####\n"
+        "####11..........#\n"
+        "#####1..........#\n"
+        "######..........+\n"
+        "######..........#\n"
+        "######..........#\n"
+        "########8####9###")
+   (str "##############+#########\n"
+        "#############..#########\n"
+        "#############....#######\n"
+        "#############......#####\n"
+        "#....................###\n"
+        "#......................#\n"
+        "+......................+\n"
+        "#......................#\n"
+        "#....................###\n"
+        "#############......#####\n"
+        "#############....#######\n"
+        "#############..#########\n"
+        "##############+#########")
+   (str "########+########\n"
+        "######3...3######\n"
+        "######.....######\n"
+        "#####1.....1#####\n"
+        "####11.....11####\n"
+        "#3.............3#\n"
+        "#...............#\n"
+        "+...............+\n"
+        "#...............#\n"
+        "#3.............3#\n"
+        "####11.....11####\n"
+        "#####1.....1#####\n"
+        "######.....######\n"
+        "######3...3######\n"
+        "########+########")
+   (str "#########+#########\n"
+        "#3...............3#\n"
+        "#.................#\n"
+        "#.......222.......#\n"
+        "+.......222.......+\n"
+        "#.......222.......#\n"
+        "#.................#\n"
+        "#3...............3#\n"
+        "####11.......11####\n"
+        "#####1.......1#####\n"
+        "######.......######\n"
+        "######3.....3######\n"
+        "#########+#########")
+   (str "#######+#######\n"
+        "######...######\n"
+        "#####.....#####\n"
+        "####.......####\n"
+        "###....3....###\n"
+        "##....121....##\n"
+        "+....32223....+\n"
+        "##....121....##\n"
+        "###....3....###\n"
+        "####.......####\n"
+        "#####.....#####\n"
+        "######...######\n"
+        "#######+#######")]))))
+
+(defn room-list [] (mapv room-to-tiles room-list-1))
 
 (defn find-tiles [tile grid]
   (for [[xy t] grid :when (= t tile)] xy))
@@ -127,7 +229,7 @@
 
 (defn is-valid-placement [grid room]
   (and (any? nil? (for [[xy _] room] (get grid xy)))
-       (all? identity (map second (merge-with (fn [a b] (or (= a b) (= :door b) (= :door a))) grid room)))
+       (all? identity (map second (merge-with (fn [a b] (or (= a b) (= :door a))) grid room)))
        (all? (fn [[x y]] (is-in-bounds? x y)) (map first room))))
 
 (defn remove-extra-doors [grid dx dy]
@@ -224,16 +326,18 @@
                [[x y] tile]))))
 
 (defn generate-grid [stairs-x stairs-y start-x start-y stairs-from stairs-to]
-  (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))
+  (loop [levels (take 2 (shuffle (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))))
          rooms-remaining 4]
     (println (count levels))
     (cond
      (= 0 (count levels))
-     (recur (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list)) 5)
+     (recur (take 2 (shuffle (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (room-list))))
+            2)
      (= 0 rooms-remaining)
      (fix-tiles (add-end-stairs (rand-nth levels) stairs-to))
      :else
-     (recur (take 5 (shuffle (grow-levels levels))) (dec rooms-remaining)))))
+     (recur (take 2 (shuffle (grow-levels levels)))
+            (dec rooms-remaining)))))
 
 (defn new-enemy [[x y]]
   (let [default {:is-creature true
@@ -245,19 +349,19 @@
                                :description "Leaves webs behind when it dies."
                                :on-death [:replace-tiles {:floor :web-floor}]
                                :on-attack [:replace-tiles {:floor :web-floor}]}
-                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 0 66 66)
+                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 60 66 66)
                                :description "Knocks others back when it dies or attacks."
                                :on-death [:knockback 3] :knockback-amount 3}
-                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 0 66 66)
+                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 120 66 66)
                                :description "Poisons others when it dies or attacks."
                                :on-death [:poison]
                                :on-attack [:poison]
                                :attack-damage 0}
-                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 0 66 66)
+                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 180 66 66)
                                :description "Does extra damage to others when it dies or attacks."
                                :on-death [:damage 1]
                                :attack-damage 2}
-                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 0 66 66)
+                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 240 66 66)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}]))))
 

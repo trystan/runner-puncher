@@ -43,6 +43,12 @@
       (rest remaining))
      :else (rest so-far))))
 
+(defn creature-can-see-creature [game from-id to-id]
+  (let [c1 (get game from-id)
+        c2 (get game to-id)
+        points (until-blocked game (bresenham (:x c1) (:y c1) (:x c2) (:y c2)))]
+    (= [(:x c2) (:y c2)] (last points))))
+
 (defn knockback-creature [game id dx dy]
   (if (= 0 dx dy)
     game
@@ -206,25 +212,6 @@
         (update-in [k :path] rest)
         (update-in [k] consume-step))))
 
-(defn move-enemy [game k]
-  (let [c (get game k)
-        occupied-by-ally (fn [xy] (any? #(= xy [(:x %) (:y %)]) (enemies game)))
-        candidates (for [xo (range -1 2)
-                         yo (range -1 2)
-                         :when (not (= 0 xo yo))]
-                     [(+ (:x c) xo) (+ (:y c) yo)])
-        candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
-        candidates (remove occupied-by-ally candidates)
-        player-xy [(get-in game [:player :x]) (get-in game [:player :y])]
-        [tx ty] (or (first (filter #(= player-xy %) candidates)) (rand-nth candidates))]
-    (if (= player-xy [tx ty])
-      (attack-creature game k :player)
-      (move-to game k tx ty))))
-
-(defn move-enemies [game]
-  (let [ids (map :id (enemies game))]
-    (reduce move-enemy game ids)))
-
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
@@ -295,3 +282,22 @@
   (let [deads (for [[id x] game :when (and (:health x) (< (:health x) 1))] id)]
     (reduce dissoc (reduce apply-on-death game deads) deads)))
 
+(defn move-enemy [game k]
+  (let [c (get game k)
+        occupied-by-ally (fn [xy] (any? #(= xy [(:x %) (:y %)]) (enemies game)))
+        candidates (for [xo (range -1 2)
+                         yo (range -1 2)
+                         :when (not (= 0 xo yo))]
+                     [(+ (:x c) xo) (+ (:y c) yo)])
+        candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
+        candidates (remove occupied-by-ally candidates)
+        toward-player (second (bresenham (:x c) (:y c) (get-in game [:player :x]) (get-in game [:player :y])))
+        [tx ty] (if (and (creature-can-see-creature game k :player) (not (occupied-by-ally toward-player)))
+                  toward-player
+                  (rand-nth candidates))]
+    (move-to game k tx ty)))
+
+(defn move-enemies [game]
+  (let [game (remove-dead-creatures game)
+        ids (map :id (enemies game))]
+    (reduce move-enemy game ids)))
