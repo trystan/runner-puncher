@@ -7,13 +7,16 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
+
+(def game-atom (atom {}))
+
 (def globals-atom (atom {}))
 
 (defn set-render-options [options]
   (let [render-options { :file (str "cp437_" (:tile-width options) "x" (:tile-height options) ".png")
                          :char-width (:tile-width options)
                          :char-height (:tile-height options)}
-        derived-options {:render-terminal (new-renderer (:window-width options) (:window-height options) render-options)
+        derived-options {:renderer (new-renderer (:window-width options) (:window-height options) render-options)
                          :width-in-characters (int (/ (:window-width options) (:tile-width options)))
                          :height-in-characters (int (/ (:window-height options) (:tile-height options)))}]
     (reset! globals-atom (merge derived-options
@@ -66,7 +69,7 @@
 
 (defn on-render [^Graphics graphics]
   (let [terminal ((:on-render (first @screen-stack-atom) identity))]
-    ((global :render-terminal) graphics terminal)))
+    ((global :renderer) graphics terminal)))
 
 (defn on-key-press [e]
   ((:on-key-press (first @screen-stack-atom) identity) e))

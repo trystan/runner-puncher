@@ -1,5 +1,7 @@
 (ns runner_puncher.worldgen
-  (:require [runner_puncher.framework :refer :all]))
+  (:require [runner_puncher.framework :refer :all]
+            [runner_puncher.creatures :refer :all]
+            [runner_puncher.items :refer :all]))
 
 (def min-x 0)
 (def min-y 1)
@@ -336,6 +338,19 @@
                    :when (or (not= :wall tile) (< 0 (walkable-neighbors x y)))]
                [[x y] tile]))))
 
+(defn ensure-walls [game]
+  (let [new-walls (for [x (range 0 (global :width-in-characters))
+                        y (range 0 (global :height-in-characters))
+                        :let [t (get-in game [:grid [x y]])
+                              neighbors (for [xo (range -1 2)
+                                              yo (range -1 2)
+                                              :when (not (= 0 xo yo))]
+                                          (get-in game [:grid [(+ x xo) (+ y yo)]]))
+                              ok (all? #(or (nil? %) (= :wall %)) neighbors)]
+                        :when (and (nil? t) (not ok))]
+                    [[x y] :wall])]
+    (update game :grid #(merge % (into {} new-walls)))))
+
 (defn generate-grid [stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (loop [levels (map #(position-start-room % stairs-x stairs-y start-x start-y stairs-from) (take 2 (shuffle (room-list))))
          rooms-remaining 4]
@@ -349,123 +364,6 @@
      (recur (take 2 (grow-levels levels 2))
             (dec rooms-remaining)))))
 
-(defn new-enemy [[x y]]
-  (let [s 75
-        l 75
-        default {:is-creature true
-                 :steps-remaining 1 :max-steps 1
-                 :health 1 :max-health 1 :attack 1 :defence 0
-                 :knockback-amount 0 :poison-amount 0
-                 :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
-    (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 s l)
-                               :description "Leaves webs behind when it dies."
-                               :on-death [:replace-tiles {:floor :web-floor}]
-                               :on-attack [:replace-tiles {:floor :web-floor}]}
-                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 30 s l)
-                               :description "Knocks others back when it dies or attacks."
-                               :on-death [:knockback 3] :knockback-amount 3}
-                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 60 s l)
-                               :description "Poisons others when it dies or attacks."
-                               :on-death [:poison]
-                               :on-attack [:poison]
-                               :attack 0}
-                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 90 s l)
-                               :description "Does extra damage to others when it dies or attacks."
-                               :on-death [:damage 1]
-                               :attack 2}
-                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 120 s l)
-                               :description "Embiggens others when it dies."
-                               :on-death [:embiggen]}
-                              {:prefix "Acid" :type "monster" :char "a" :fg (hsl 150 s l)
-                               :description "Leaves acid pools when it dies."
-                               :on-death [:replace-tiles {:floor :acid-floor}]}
-                              {:prefix "Null" :type "monster" :char "n" :fg (hsl 180 s l)
-                               :description "Nulifies nearby walls when it dies."
-                               :on-death [:replace-tiles {:wall :floor :door :floor}]}
-                              {:prefix "Summoning" :type "monster" :char "s" :fg (hsl 210 s l)
-                               :description "Summons others when it dies."
-                               :on-death [:summon-others]}]))))
-
-
-(defn random-item [is-store-item]
-  (let [prefix (rand-nth [{:name "heavy" :description "-1 movement." :effect {:max-steps -1}}
-                          {:name "uncomfortable" :description "-1 knockback." :effect {:knockback-amount -1}}
-                          {:name "smelly" :description "Increase shop prices by $5." :effect {:affect-prices 5}}
-                          {:name "decent" :description "" :effect {}}])
-        noun (rand-nth [{:char "[" :slot "footwear" :name "shoes"}
-                        {:char "]" :slot "armor" :name "cape"}
-                        {:char "(" :slot "headwear" :name "helm"}
-                        {:char ")" :slot "weapon" :name "knuckles"}])
-        postfix (rand-nth [{:name "of running" :description "+2 movement."
-                            :effect {:max-steps 2}}
-                           {:name "of punching" :description "+2 knockback."
-                            :effect {:knockback-amount 2}}
-                           {:name "of life" :description "+1 life."
-                            :effect {:max-health 1 :health 1}}
-                           {:name "of standing" :description "Resist knockback 50%."
-                            :effect {:resist-knockback 1}}
-                           {:name "of anti-poison" :description "Ignore poison attacks."
-                            :effect {:ignore-poison 1}}
-                           {:name "of charming" :description "Decrease shop prices by $5."
-                            :effect {:affect-prices -3}}
-                           {:name "of defense" :description "+1 defence."
-                            :effect {:defence 1}}
-                           {:name "of attack" :description "+1 attack."
-                            :effect {:attack 1}}
-                           {:name "of webwalking" :description "Ignore webs."
-                            :effect {:ignore-webs 1}}
-                           {:name "of acidwalking" :description "Ignore acid pools."
-                            :effect {:ignore-acid-floor 1}}])
-        [prefix postfix] (cond
-                          is-store-item
-                          [prefix postfix]
-                          (< (rand) 0.66)
-                          [prefix nil]
-                          :else
-                          [nil postfix])
-        item-name (:name noun)
-        item-name (if prefix (str (:name prefix) " " item-name) item-name)
-        item-name (if postfix (str item-name " " (:name postfix)) item-name)
-        item-name (clojure.string/capitalize item-name)
-        description ""
-        description (if postfix (str description " " (:description postfix)) description)
-        description (if prefix (str description " " (:description prefix)) description)
-        description (.trim description)
-        effect {}
-        effect (if prefix (merge-with + effect (:effect prefix)) effect)
-        effect (if postfix (merge-with + effect (:effect postfix)) effect)]
-  {:price 0 :name item-name :slot (:slot noun) :description description
-   :effect effect :char (:char noun) :fg light}))
-
-(defn make-amulet [[x y]]
-  {:is-item true :name "amulet" :char "*" :fg (hsl 80 99 99)
-   :description "The reason you are down here."
-   :effect {:going-up 1}
-   :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))})
-
-(defn new-gold [[x y]]
-  {:is-item true :name "gold" :char "$" :fg (hsl 60 50 50)
-   :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))
-   :effect {:gold 1}
-   :description "Good for buying things."})
-
-(defn new-item [[x y] is-store-item]
-  (let [default {:is-item true
-                 :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))}]
-    (merge default (random-item is-store-item))))
-
-(defn make-creatures [grid depth]
-  (let [candidates (find-tiles :floor grid)
-        positions (take (+ 8 (* 4 depth)) (shuffle candidates))]
-    (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
-
-(defn make-treasures [grid depth]
-  (let [candidates (shuffle (find-tiles :floor grid))
-        gold-positions (take (+ 29 depth) candidates)
-        item-positions (take (+ 9 depth) (drop (count gold-positions) candidates))]
-    (merge (into {} (for [t (map #(new-item % false) item-positions)] [(:id t) t]))
-           (into {} (for [t (map new-gold gold-positions)] [(:id t) t])))))
-
 (defn replace-down-stairs-with-amulet [grid]
   (let [candidates (find-tiles :stairs-down grid)
         target (rand-nth candidates)
@@ -478,4 +376,6 @@
         [grid amulet] (if (= final-floor-depth depth)
                         (replace-down-stairs-with-amulet grid)
                         [grid {}])]
-    (merge {:grid grid} (make-creatures grid depth) (make-treasures grid depth) amulet)))
+    (merge {:grid grid}
+           (make-creatures grid depth (find-tiles :floor grid))
+           (make-treasures grid depth (find-tiles :floor grid)) amulet)))

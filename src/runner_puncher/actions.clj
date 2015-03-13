@@ -1,15 +1,12 @@
 (ns runner_puncher.actions
   (:require [runner_puncher.framework :refer :all]
-            [runner_puncher.worldgen :refer :all]))
+            [runner_puncher.worldgen :refer :all]
+            [runner_puncher.creatures :refer :all]
+            [runner_puncher.items :refer :all]
+            [runner_puncher.util :refer :all]))
 
 (defn add-message [game message]
   (update game :messages #(conj % {:text message :at (:tick game)})))
-
-(defn fix-store-prices [items]
-  (vec (for [i (range 0 (count items))]
-         (assoc (nth items i) :price (+ 5 (* 5 i))))))
-
-(def store-atom (atom []))
 
 (defn drop-item [game player item]
   (-> game
@@ -45,36 +42,38 @@
       (update-in [:player :gold] #(- % (:price item)))
       (equip-item item)))
 
+(defn fix-store-prices [items]
+  (vec (for [i (range 0 (count items))]
+         (assoc (nth items i) :price (+ 5 (* 5 i))))))
+
 (defn restock-store-items [items]
   (let [items (remove nil? items)]
-    (fix-store-prices (take 9 (concat (drop 2 items) (repeatedly 20 (partial random-item true)))))))
+    (fix-store-prices (take 9 (concat (drop 3 items) (repeatedly 20 (partial random-item true)))))))
 
 (defn enter-store [game]
-  (swap! store-atom restock-store-items)
+  (push-screen (:store-screen game))
   (let [affect (get-in game [:player :affect-prices] 0)
         apply-discount (fn [i] (update i :price #(+ % affect)))]
-    (swap! store-atom #(mapv apply-discount %)))
-  (push-screen (:store-screen game)))
+    (-> game
+        (update :store-items restock-store-items)
+        (update :store-items #(mapv apply-discount %)))))
 
-(defn creature-at [g xy]
-  (first (for [[id e] g
+(defn creature-at [game xy]
+  (first (for [[_ e] game
                :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
            e)))
 
 (defn enemies [game]
-  (for [[k v] game :when (.startsWith (str k) ":enemy-")] v))
+  (for [[id e] game :when (and (not= :player id) (:is-creature e))] e))
 
 (defn item-at [game xy]
-  (first (for [[id e] game
+  (first (for [[_ e] game
                :when (and (:is-item e) (= xy [(:x e) (:y e)]))]
            e)))
 
 (defn items [game]
-  (for [[k v] game :when (:is-item v)] v))
+  (for [[_ e] game :when (:is-item e)] e))
 
-(defn nearby [x1 y1 x2 y2 minimum maximum]
-  (let [distance-squared (+ (Math/pow (- x1 x2) 2) (Math/pow (- y1 y2) 2))]
-    (<= (* minimum minimum) distance-squared (* maximum maximum))))
 
 (defn spawn-creature-at [game x y]
   (let [c (new-enemy [x y])]
@@ -90,18 +89,10 @@
       game)))
 
 (defn remove-items [game]
-  (let [ids (map :id (items game))]
-    (reduce dissoc game ids)))
+  (reduce dissoc game (map :id (items game))))
 
 (defn remove-enemies [game]
-  (let [ids (map :id (enemies game))]
-    (reduce dissoc game ids)))
-
-(defn end-movement [creature]
-  (-> creature
-      (assoc :path [])
-      (assoc :steps-remaining 0)
-      (assoc :is-knocked-back false)))
+  (reduce dissoc game (map :id (enemies game))))
 
 (defn until-blocked [game points]
   (loop [so-far []
@@ -146,36 +137,6 @@
                                                                          (+ dy (:y c))))))))]
         (update-in game [id] kb)))))
 
-(defn embiggen-creature [c]
-  (if (= (clojure.string/upper-case (:char c)) (:char c))
-    c
-    (-> c
-        (update :prefix #(str "Giant " (clojure.string/lower-case %)))
-        (update :char clojure.string/upper-case)
-        (update :health inc)
-        (update :max-health inc)
-        (assoc :immune-to-knockback true))))
-
-(defn poison-creature [c]
-  (if (> (:ignore-poison c 0) 0)
-    c
-    (-> c
-        (assoc :poison-amount (inc (:poison-amount c 0)))
-        (update :max-health dec)
-        (update :health dec)
-        (update :max-steps dec)
-        (update :knockback-amount dec))))
-
-(defn unpoison-creature-once [c]
-  (if (> (:poison-amount c 0) 0)
-    (-> c
-      (update :poison-amount dec)
-      (update :max-health inc)
-      (update :health inc)
-      (update :max-steps inc)
-      (update :knockback-amount inc))
-    c))
-
 (defn attack-creature [game id-from id-to]
   (if (:is-knocked-back (get game id-from))
     (update game id-from end-movement)
@@ -193,17 +154,14 @@
           (update-in [id-to :health] #(- % (max 1 (- (:attack attacker 1) (:defence attacked 0)))))
           (knockback-creature id-to dx dy)))))
 
-(defn move-downstairs [game k]
-  (enter-store game)
-  game)
-
-(defn move-upstairs [game k]
-  (let [creature (get game k)
+(defn move-upstairs [game id]
+  (let [creature (get game id)
         [ox oy] (:direction creature)]
     (if (= 1 (:dungeon-level creature))
-      (swap-screen (:exit-screen game))
-      (enter-store game)))
-  game)
+      (do
+        (swap-screen (:exit-screen game))
+        game)
+      (enter-store game))))
 
 (defn exit-store-downstairs [game]
   (let [creature (get game :player)
@@ -233,19 +191,19 @@
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
         (add-message (str "You acend to level " (inc (:dungeon-level creature)) ".")))))
 
-(defn use-stairs [game k]
-  (if (not= :player k)
+(defn use-stairs [game id]
+  (if (not= :player id)
     game
-    (let [creature (get game k)
+    (let [creature (get game id)
           [x y] [(:x creature) (:y creature)]]
       (case (get-in game [:grid [x y]])
         :stairs-down
         (if (> (:going-up creature) 0)
           game
-          (move-downstairs game k))
+          (enter-store game))
         :stairs-up
         (if (> (:going-up creature) 0)
-          (move-upstairs game k)
+          (move-upstairs game id)
           game)
         game))))
 
@@ -256,82 +214,128 @@
         (add-message "You punch the door off its hinges."))
     game))
 
-(defn pickup-item [game k]
-  (let [x (get-in game [k :x])
-        y (get-in game [k :y])
+(defn pickup-item [game id]
+  (let [x (get-in game [id :x])
+        y (get-in game [id :y])
         item (item-at game [x y])]
-    (if (and (= :player k) item)
+    (if (and (= :player id) item)
       (-> game
           (equip-item item)
           (dissoc (:id item))
-          (update k end-movement)
-          (spawn-creature-near (+ 2 x) (+ 2 y)))
+          (update id end-movement)
+          (spawn-creature-near x y))
       game)))
 
-(defn acid-floor [game k x y]
-  (if (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game k))))
-    (update-in game [k :health] dec)
+(defn acid-floor [game id x y]
+  (if (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game id))))
+    (update-in game [id :health] dec)
     game))
 
-(defn move-to [game k nx ny]
+(defn move-to [game id nx ny]
   (if (= 0 nx ny)
     game
-    (let [x (get-in game [k :x])
-          y (get-in game [k :y])
+    (let [x (get-in game [id :x])
+          y (get-in game [id :y])
           direction [(- nx x) (- ny y)]
           target (get tiles (get-in game [:grid [nx ny]]) out-of-bounds)
           other-id (:id (creature-at game [nx ny]))]
       (cond
-       (and (not (:is-knocked-back (get game k)))
+       (and (not (:is-knocked-back (get game id)))
             (= :web-floor (get-in game [:grid [x y]]))
-            (not (:ignore-webs (get game k))))
+            (not (:ignore-webs (get game id))))
        (-> game
            (assoc-in [:grid [x y]] :floor)
-           (update k end-movement)
+           (update id end-movement)
            (add-message "You free yourself from the web."))
-       (and (not (nil? other-id)) (not= k other-id))
-       (attack-creature game k other-id)
+       (and (not (nil? other-id)) (not= id other-id))
+       (attack-creature game id other-id)
        (:walkable target)
        (-> game
            (update :tick inc)
            (open-door nx ny)
-           (assoc-in [k :direction] direction)
-           (assoc-in [k :x] nx)
-           (assoc-in [k :y] ny)
-           (acid-floor k nx ny)
-           (use-stairs k)
-           (pickup-item k))
+           (assoc-in [id :direction] direction)
+           (assoc-in [id :x] nx)
+           (assoc-in [id :y] ny)
+           (acid-floor id nx ny)
+           (use-stairs id)
+           (pickup-item id))
        :else game))))
 
-(defn consume-step [creature]
-  (if (:is-knocked-back creature)
-    (if (empty? (:path creature))
-      (assoc creature :is-knocked-back false)
-      creature)
-    (let [creature (update creature :steps-remaining dec)]
-      (if (< (:steps-remaining creature) 1)
-        (end-movement creature)
-        creature))))
-
-(defn move-by-path [game k]
-  (let [step (first (get-in game [k :path]))]
+(defn move-by-path [game id]
+  (let [step (first (get-in game [id :path]))]
     (-> game
-        (move-to k (first step) (second step))
-        (update-in [k :path] rest)
-        (update-in [k] consume-step))))
+        (move-to id (first step) (second step))
+        (update-in [id :path] rest)
+        (update-in [id] consume-step))))
 
-(defn ensure-walls [game]
-  (let [new-walls (for [x (range 0 (global :width-in-characters))
-                        y (range 0 (global :height-in-characters))
-                        :let [t (get-in game [:grid [x y]])
-                              neighbors (for [xo (range -1 2)
-                                              yo (range -1 2)
-                                              :when (not (= 0 xo yo))]
-                                          (get-in game [:grid [(+ x xo) (+ y yo)]]))
-                              ok (all? #(or (nil? %) (= :wall %)) neighbors)]
-                        :when (and (nil? t) (not ok))]
-                    [[x y] :wall])]
-    (update game :grid #(merge % (into {} new-walls)))))
+(defn apply-replace-tiles-blast [game x y replacements]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)]
+                       [(+ x xo) (+ y yo)])
+        getter #(get replacements % %)
+        replace-fn (fn [g xy] (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
+    (ensure-walls (reduce replace-fn game neighborhood))))
+
+(defn apply-knockback-blast [game x y amount]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)
+                           :when (not= xo yo 0)]
+                       [(+ x xo) (+ y yo)])
+        creature-at (fn [g xy] (first (for [[id e] g
+                                            :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
+                                        e)))
+        affect-fn (fn [g xy]
+                    (let [c (creature-at game xy)
+                          dx (if c (* amount (- (:x c) x)) 0)
+                          dy (if c (* amount (- (:y c) y)) 0)]
+                      (if c
+                        (knockback-creature g (:id c) dx dy)
+                        g)))]
+    (reduce affect-fn game neighborhood)))
+
+(defn apply-embiggen-blast [game x y]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)]
+                       [(+ x xo) (+ y yo)])
+        affect-fn (fn [g xy]
+                    (let [c (creature-at game xy)]
+                      (if c
+                        (update g (:id c) embiggen-creature)
+                        g)))]
+    (reduce affect-fn game neighborhood)))
+
+(defn apply-poison-blast [game x y ]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)
+                           :when (not= xo yo 0)]
+                       [(+ x xo) (+ y yo)])
+        affect-fn (fn [g xy]
+                    (let [c (creature-at game xy)]
+                      (if c
+                        (update g (:id c) poison-creature)
+                        g)))]
+    (reduce affect-fn game neighborhood)))
+
+(defn apply-damage-blast [game x y amount]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)]
+                       [(+ x xo) (+ y yo)])
+        affect-fn (fn [g xy]
+                    (let [c (creature-at game xy)]
+                      (if c
+                        (update-in g [(:id c) :health] dec)
+                        g)))]
+    (reduce affect-fn game neighborhood)))
+
+(defn apply-summon-blast [game x y]
+  (let [neighborhood (for [xo (range -1 2)
+                           yo (range -1 2)]
+                       [(+ x xo) (+ y yo)])
+        affect-fn (fn [g [x y]]
+                    (if (and (get-in game [:grid [x y] :walkable]) (creature-at game [x y]))
+                      g
+                      (spawn-creature-at g x y)))]
+    (reduce affect-fn game neighborhood)))
 
 (defn apply-on-death [game id]
   (let [creature (get game id)
@@ -339,81 +343,25 @@
         y (:y creature)]
     (case (first (:on-death creature))
       :replace-tiles
-      (let [replacements (second (:on-death creature))
-            neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)]
-                           [(+ x xo) (+ y yo)])
-            getter #(get replacements % %)
-            replace-fn (fn [g xy]
-                         (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
-        (ensure-walls (reduce replace-fn game neighborhood)))
+      (apply-replace-tiles-blast game x y (second (:on-death creature)))
       :knockback
-      (let [amount (second (:on-death creature))
-            neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)
-                               :when (not= xo yo 0)]
-                           [(+ x xo) (+ y yo)])
-            creature-at (fn [g xy] (first (for [[id e] g
-                                                :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
-                                            e)))
-            affect-fn (fn [g xy]
-                        (let [c (creature-at game xy)
-                              dx (if c (* amount (- (:x c) x)) 0)
-                              dy (if c (* amount (- (:y c) y)) 0)]
-                          (if c
-                            (knockback-creature g (:id c) dx dy)
-                            g)))]
-        (reduce affect-fn game neighborhood))
+      (apply-knockback-blast game x y (second (:on-death creature)))
       :embiggen
-      (let [neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)]
-                           [(+ x xo) (+ y yo)])
-            affect-fn (fn [g xy]
-                        (let [c (creature-at game xy)]
-                          (if c
-                            (update g (:id c) embiggen-creature)
-                            g)))]
-        (reduce affect-fn game neighborhood))
+      (apply-embiggen-blast game x y)
       :poison
-      (let [neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)
-                               :when (not= xo yo 0)]
-                           [(+ x xo) (+ y yo)])
-            affect-fn (fn [g xy]
-                        (let [c (creature-at game xy)]
-                          (if c
-                            (update g (:id c) poison-creature)
-                            g)))]
-        (reduce affect-fn game neighborhood))
+      (apply-poison-blast game x y)
       :damage
-      (let [amount (second (:on-death creature))
-            neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)
-                               :when (not= xo yo 0)]
-                           [(+ x xo) (+ y yo)])
-            affect-fn (fn [g xy]
-                        (let [c (creature-at game xy)]
-                          (if c
-                            (update-in g [(:id c) :health] dec)
-                            g)))]
-        (reduce affect-fn game neighborhood))
+      (apply-damage-blast game x y (second (:on-death creature)))
       :summon-others
-      (let [neighborhood (for [xo (range -1 2)
-                               yo (range -1 2)]
-                           [(+ x xo) (+ y yo)])
-            affect-fn (fn [g [x y]]
-                          (if (and (get-in game [:grid [x y] :walkable]) (creature-at game [x y]))
-                            g
-                            (spawn-creature-at g x y)))]
-        (reduce affect-fn game neighborhood))
+      (apply-summon-blast game x y)
       game)))
 
 (defn remove-dead-creatures [game]
-  (let [deads (for [[id x] game :when (and (:health x) (< (:health x) 1))] id)]
+  (let [deads (for [[id e] game :when (and (:health e) (< (:health e) 1))] id)]
     (reduce dissoc (reduce apply-on-death game deads) deads)))
 
-(defn move-enemy [game k]
-  (let [c (get game k)
+(defn move-enemy [game id]
+  (let [c (get game id)
         occupied-by-ally (fn [xy] (any? #(= xy [(:x %) (:y %)]) (enemies game)))
         candidates (for [xo (range -1 2)
                          yo (range -1 2)
@@ -422,14 +370,50 @@
         candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
         candidates (remove occupied-by-ally candidates)
         toward-player (second (bresenham (:x c) (:y c) (get-in game [:player :x]) (get-in game [:player :y])))
-        [tx ty] (if (and (creature-can-see-creature game k :player) (not (occupied-by-ally toward-player)))
+        [tx ty] (if (and (creature-can-see-creature game id :player) (not (occupied-by-ally toward-player)))
                   toward-player
                   (if (empty? candidates)
                     [0 0]
                     (rand-nth candidates)))]
-    (move-to game k tx ty)))
+    (move-to game id tx ty)))
 
 (defn move-enemies [game]
   (let [game (remove-dead-creatures game)
         ids (map :id (enemies game))]
     (reduce move-enemy game ids)))
+
+(defn move-player-target [game mx my]
+  (update game :target #(map + % [mx my])))
+
+(defn move-player-to-target [game]
+  (let [player (get game :player)
+        points (take (:steps-remaining player) (rest (bresenham
+                                                      (:x player)
+                                                      (:y player)
+                                                      (first (:target game))
+                                                      (second (:target game)))))
+        grid (:grid game)]
+    (if (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)
+      (assoc-in game [:player :path] points)
+      game)))
+
+(defn maybe-buy-item [game index]
+  (let [player (:player game)
+        item (nth (:store-items game) index)]
+    (if (and item (<= (:price item) (:gold player)))
+      (-> game
+          (apply-purchace item)
+          (assoc-in [:store-items index] nil))
+      game)))
+
+(defn new-game [win-screen store-screen]
+  (let [g {:tick 0
+           :target [5 9]
+           :store-items []
+           :exit-screen win-screen
+           :store-screen store-screen
+           :messages []
+           :player (new-player [5 9])}]
+    (-> g
+        (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
+        (add-message "You are RUNNER_PUNCHER."))))
