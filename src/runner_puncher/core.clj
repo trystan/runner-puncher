@@ -22,7 +22,7 @@
            :player {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
                     :description "Trying to find something on the 10th dungeon level."
                     :id :player :knockback-amount 5 :poison-amount 0 :attack-damage 1
-                    :is-creature true :going-up false :path []
+                    :is-creature true :going-up 0 :path [] :gold 0
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
                     :inventory []
                     :x 5 :y 9 :dungeon-level 9 :direction [0 0]}}]
@@ -30,7 +30,7 @@
         (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
         (add-message "You are RUNNER_PUNCHER."))))
 
-(def game-atom (atom new-game))
+(def game-atom (atom []))
 
 (def player-target-atom (atom [5 9]))
 
@@ -90,7 +90,7 @@
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
         (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
 
-        (add-string (str "$" (count (filter #(= (:name %) "gold") (:inventory player)))) (- runner-start 4) 0 (hsl 60 50 50) nil)
+        (add-string (str "$" (:gold player)) (- runner-start 4) 0 (hsl 60 50 50) nil)
 
         (add-string "run" runner-start 0 fg nil)
         (render-counters (:steps-remaining player) (:max-steps player) (:poison-amount player)
@@ -105,18 +105,34 @@
 
 (defn render-target [t game mx my]
   (let [c (creature-at game [mx my])
+        item (item-at game [mx my])
         tile (get tiles (get-in game [:grid [mx my]]))
         x 1
-        y (if (< my 5) 6 2)]
-    (if c
-      (-> t
-          (add-string (str (:prefix c) " " (:type c)) x (+ y 0) fg bg)
-          (render-health (:health c) (:max-health c) (:poison-amount c)
-                         (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
-          (add-string (describe-creature c) x (+ y 1) fg bg)
-          (add-string (str "Standing on " (:name tile)) x (+ y 2) fg bg))
-      (-> t
-          (add-string (:name tile) 2 (+ y 0) fg bg)))))
+        y (if (< my 12) 13 2)
+        slot-description (fn [slot]
+                           (if (get c slot)
+                             (str (clojure.string/capitalize slot) ": " (get-in c [slot :name]) " - " (get-in c [slot :description]))
+                             (str (clojure.string/capitalize slot) ": none")))]
+    (cond
+     c
+     (-> t
+         (add-string (str (:prefix c) " " (:type c)) x (+ y 0) fg bg)
+         (render-health (:health c) (:max-health c) (:poison-amount c)
+                        (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
+         (add-string (describe-creature c) x (+ y 1) fg bg)
+         (add-string (slot-description "headwear") x (+ y 2) fg bg)
+         (add-string (slot-description "armor") x (+ y 3) fg bg)
+         (add-string (slot-description "footwear") x (+ y 4) fg bg)
+         (add-string (slot-description "weapon") x (+ y 5) fg bg)
+         (add-string (str "Standing on " (:name tile)) x (+ y 6) fg bg))
+     item
+     (-> t
+         (add-string (:name item) x (+ y 0) fg bg)
+         (add-string (:description item) x (+ y 1) fg bg)
+         (add-string (str "On " (:name tile)) x (+ y 2) fg bg))
+     :else
+     (-> t
+         (add-string (:name tile) 2 (+ y 0) fg bg)))))
 
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
@@ -229,8 +245,11 @@
   (reduce render-store-item t (for [i (range 0 (count items))] [i (nth items i)])))
 
 (defn maybe-buy-item [index]
-  (swap! game-atom apply-purchace (get @game-atom index))
-  (swap! store-atom assoc index nil))
+  (let [player (get @game-atom :player)
+        item (nth @store-atom index)]
+    (if (<= (:price item) (:gold player))
+      (swap! game-atom apply-purchace item)
+      (swap! store-atom assoc index nil))))
 
 (def store-screen {:on-render (fn [] (-> {}
                                        (add-center-string "Welcome to the store between levels!" 2)
@@ -251,7 +270,7 @@
                                   :9 (maybe-buy-item 8)
                                   :enter (do
                                            (pop-screen)
-                                           (if (get-in @game-atom [:player :going-up])
+                                           (if (> (get-in @game-atom [:player :going-up]) 0)
                                              (swap! game-atom exit-store-upstairs)
                                              (swap! game-atom exit-store-downstairs)))
                                   (println e)))})

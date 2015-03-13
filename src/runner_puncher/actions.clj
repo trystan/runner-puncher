@@ -2,45 +2,43 @@
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.worldgen :refer :all]))
 
-(defn random-item []
-  (let [prefix (rand-nth [{:name "heavy" :description "Reduce movement by 2."}
-                          {:name "sturdy" :description "Immune to acid."}])
-        prefix (if (< (rand) 0.66) nil prefix)
-        noun (rand-nth ["boots" "heels" "sandals" "shoes"
-                        "armor" "cloak" "tunic" "dress"
-                        "tiara" "helm" "hat"
-                        "gauntlets" "knuckles"])
-        postfix (rand-nth [{:name "of running" :description "Increase movement by 2."}
-                           {:name "of punching" :description "Increase knockback by 2."}
-                           {:name "of life" :description "Increase life by 1."}
-                           {:name "of standing" :description "Resist knockback 50%."}
-                           {:name "of vitality" :description "Immunity to poison."}
-                           {:name "of charming" :description "Lower shop item costs by $3."}
-                           {:name "of protection" :description "Reduce damage by 1 to minimum of 1."}
-                           {:name "of webwalking" :description "Immunity to webs."}])
-        postfix (if (< (rand) 0.33) nil postfix)
-        item-name noun
-        item-name (if prefix (str (:name prefix) " " item-name) item-name)
-        item-name (if postfix (str item-name " " (:name postfix)) item-name)
-        description ""
-        description (if postfix (str description " " (:description postfix)) description)
-        description (if prefix (str description " " (:description prefix)) description)]
-  {:price 0 :name item-name :description description}))
-
 (defn fix-store-prices [items]
   (vec (for [i (range 0 (count items))]
-         (assoc (nth items i) :price (+ 5 (* 2 i))))))
+         (assoc (nth items i) :price (+ 5 (* 5 i))))))
 
 (def store-atom (atom []))
 
-(defn apply-purchace [game item]
-  (case (first (:effect item))
-    :allow-going-up-stairs
-    (assoc-in game [:player :going-up] true)
+(defn drop-item [game player item]
+  (-> game
+      (assoc (:id item) item)
+      (assoc-in [(:id item) :x] (:x player))
+      (assoc-in [(:id item) :y] (:y player))))
+
+(defn unequip-slot [game slot]
+  (let [item (get-in game [:player slot])]
+    (if (and slot item)
+      (-> game
+          (drop-item (get game :player) item)
+          (assoc-in [:player slot] nil)
+          (update :player #(merge-with - % (:effect item)))))
     game))
 
+(defn equip-item [game item]
+  (let [set-slot (fn [g] (if (:slot item)
+                           (assoc-in g [:player (:slot item)] item)
+                           g))]
+    (-> game
+        (unequip-slot (:slot item))
+        (set-slot)
+        (update :player #(merge-with + % (:effect item))))))
+
+(defn apply-purchace [game item]
+  (-> game
+      (update-in [:player :gold] #(- % (:price item)))
+      (equip-item item)))
+
 (defn restock-store-items [items]
-  (fix-store-prices (take 10 (concat (drop 1 items) (repeatedly 10 random-item)))))
+  (fix-store-prices (take 9 (concat (drop 2 items) (repeatedly 20 (partial random-item true))))))
 
 (defn enter-store [game]
   (swap! store-atom restock-store-items)
@@ -219,11 +217,11 @@
           [x y] [(:x creature) (:y creature)]]
       (case (get-in game [:grid [x y]])
         :stairs-down
-        (if (:going-up creature)
+        (if (> (:going-up creature) 0)
           game
           (move-downstairs game k))
         :stairs-up
-        (if (:going-up creature)
+        (if (> (:going-up creature) 0)
           (move-upstairs game k)
           game)
         game))))
@@ -241,8 +239,7 @@
         item (item-at game [x y])]
     (if (and (= :player k) item)
       (-> game
-          (update-in [k :inventory] conj item)
-          (apply-purchace item)
+          (equip-item item)
           (dissoc (:id item))
           (update k end-movement)
           (spawn-creature-near (+ 2 x) (+ 2 y)))
