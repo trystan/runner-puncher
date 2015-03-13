@@ -2,6 +2,9 @@
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.worldgen :refer :all]))
 
+(defn add-message [game message]
+  (update game :messages #(conj % {:text message :at (:tick game)})))
+
 (defn fix-store-prices [items]
   (vec (for [i (range 0 (count items))]
          (assoc (nth items i) :price (+ 5 (* 5 i))))))
@@ -20,14 +23,19 @@
       (-> game
           (drop-item (get game :player) item)
           (assoc-in [:player slot] nil)
-          (update :player #(merge-with - % (:effect item)))))
-    game))
+          (update :player #(merge-with - % (:effect item))))
+      game)))
 
 (defn equip-item [game item]
   (let [set-slot (fn [g] (if (:slot item)
                            (assoc-in g [:player (:slot item)] item)
-                           g))]
+                           g))
+        existing-item (get-in game [:player (:slot item)])
+        message-player (fn [g] (if existing-item
+                      (add-message g (str "You drop your " (:name existing-item) " and pick up " (:name item) "."))
+                      (add-message g (str "You stop to pick up " (:name item)))))]
     (-> game
+        (message-player)
         (unequip-slot (:slot item))
         (set-slot)
         (update :player #(merge-with + % (:effect item))))))
@@ -38,7 +46,8 @@
       (equip-item item)))
 
 (defn restock-store-items [items]
-  (fix-store-prices (take 9 (concat (drop 2 items) (repeatedly 20 (partial random-item true))))))
+  (let [items (remove nil? items)]
+    (fix-store-prices (take 9 (concat (drop 2 items) (repeatedly 20 (partial random-item true)))))))
 
 (defn enter-store [game]
   (swap! store-atom restock-store-items)
@@ -62,9 +71,6 @@
 
 (defn items [game]
   (for [[k v] game :when (:is-item v)] v))
-
-(defn add-message [game message]
-  (update game :messages #(conj % {:text message :at (:tick game)})))
 
 (defn nearby [x1 y1 x2 y2 minimum maximum]
   (let [distance-squared (+ (Math/pow (- x1 x2) 2) (Math/pow (- y1 y2) 2))]
@@ -184,7 +190,7 @@
       (-> game
           (update id-from end-movement)
           (update id-to affect-fn)
-          (update-in [id-to :health] #(- % (max 1 (- (:attack-damage attacker 1) (:resist-damage attacked 0)))))
+          (update-in [id-to :health] #(- % (max 1 (- (:attack attacker 1) (:defence attacked 0)))))
           (knockback-creature id-to dx dy)))))
 
 (defn move-downstairs [game k]
@@ -325,7 +331,6 @@
                               ok (all? #(or (nil? %) (= :wall %)) neighbors)]
                         :when (and (nil? t) (not ok))]
                     [[x y] :wall])]
-    (println "ensure-walls" new-walls)
     (update game :grid #(merge % (into {} new-walls)))))
 
 (defn apply-on-death [game id]

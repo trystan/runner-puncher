@@ -354,7 +354,7 @@
         l 75
         default {:is-creature true
                  :steps-remaining 1 :max-steps 1
-                 :health 1 :max-health 1 :attack-damage 1
+                 :health 1 :max-health 1 :attack 1 :defence 0
                  :knockback-amount 0 :poison-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
     (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 s l)
@@ -368,11 +368,11 @@
                                :description "Poisons others when it dies or attacks."
                                :on-death [:poison]
                                :on-attack [:poison]
-                               :attack-damage 0}
+                               :attack 0}
                               {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 90 s l)
                                :description "Does extra damage to others when it dies or attacks."
                                :on-death [:damage 1]
-                               :attack-damage 2}
+                               :attack 2}
                               {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 120 s l)
                                :description "Embiggens others when it dies."
                                :on-death [:embiggen]}
@@ -388,32 +388,33 @@
 
 
 (defn random-item [is-store-item]
-  (let [prefix (rand-nth [{:name "heavy" :description "Reduce movement by 1." :effect {:max-steps -1}}
-                          {:name "uncomfortable" :description "Reduce knockback by 1." :effect {:knockback-amount -1}}
-                          {:name "smelly" :description "Increase shop item costs by $5." :effect {:affect-prices 5}}])
+  (let [prefix (rand-nth [{:name "heavy" :description "-1 movement." :effect {:max-steps -1}}
+                          {:name "uncomfortable" :description "-1 knockback." :effect {:knockback-amount -1}}
+                          {:name "smelly" :description "Increase shop prices by $5." :effect {:affect-prices 5}}
+                          {:name "decent" :description "" :effect {}}])
         noun (rand-nth [{:char "[" :slot "footwear" :name "shoes"}
                         {:char "]" :slot "armor" :name "cape"}
                         {:char "(" :slot "headwear" :name "helm"}
                         {:char ")" :slot "weapon" :name "knuckles"}])
-        postfix (rand-nth [{:name "of running" :description "Increase movement by 2."
+        postfix (rand-nth [{:name "of running" :description "+2 movement."
                             :effect {:max-steps 2}}
-                           {:name "of punching" :description "Increase knockback by 2."
+                           {:name "of punching" :description "+2 knockback."
                             :effect {:knockback-amount 2}}
-                           {:name "of life" :description "Increase life by 1."
+                           {:name "of life" :description "+1 life."
                             :effect {:max-health 1 :health 1}}
                            {:name "of standing" :description "Resist knockback 50%."
                             :effect {:resist-knockback 1}}
-                           {:name "of anti-poison" :description "Immunity to poison attacks."
+                           {:name "of anti-poison" :description "Ignore poison attacks."
                             :effect {:ignore-poison 1}}
-                           {:name "of charming" :description "Lower shop item costs by $3."
+                           {:name "of charming" :description "Decrease shop prices by $5."
                             :effect {:affect-prices -3}}
-                           {:name "of protection" :description "Reduce damage by 1 to minimum of 1."
-                            :effect {:resist-damage 1}}
-                           {:name "of attacking" :description "Increase attack damage by 1."
-                            :effect {:attack-damage 1}}
-                           {:name "of webwalking" :description "Immunity to webs."
+                           {:name "of defense" :description "+1 defence."
+                            :effect {:defence 1}}
+                           {:name "of attack" :description "+1 attack."
+                            :effect {:attack 1}}
+                           {:name "of webwalking" :description "Ignore webs."
                             :effect {:ignore-webs 1}}
-                           {:name "of acidwalking" :description "Immunity to acid pools."
+                           {:name "of acidwalking" :description "Ignore acid pools."
                             :effect {:ignore-acid-floor 1}}])
         [prefix postfix] (cond
                           is-store-item
@@ -425,14 +426,16 @@
         item-name (:name noun)
         item-name (if prefix (str (:name prefix) " " item-name) item-name)
         item-name (if postfix (str item-name " " (:name postfix)) item-name)
+        item-name (clojure.string/capitalize item-name)
         description ""
         description (if postfix (str description " " (:description postfix)) description)
         description (if prefix (str description " " (:description prefix)) description)
+        description (.trim description)
         effect {}
         effect (if prefix (merge-with + effect (:effect prefix)) effect)
         effect (if postfix (merge-with + effect (:effect postfix)) effect)]
-  {:price 0 :name item-name :slot (:slot noun) :description description :effect effect :char (:char noun) :fg light}))
-
+  {:price 0 :name item-name :slot (:slot noun) :description description
+   :effect effect :char (:char noun) :fg light}))
 
 (defn make-amulet [[x y]]
   {:is-item true :name "amulet" :char "*" :fg (hsl 80 99 99)
@@ -443,7 +446,7 @@
 (defn new-gold [[x y]]
   {:is-item true :name "gold" :char "$" :fg (hsl 60 50 50)
    :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))
-   :effect {:gold (inc (rand-int 5))}
+   :effect {:gold 1}
    :description "Good for buying things."})
 
 (defn new-item [[x y] is-store-item]
@@ -458,8 +461,8 @@
 
 (defn make-treasures [grid depth]
   (let [candidates (shuffle (find-tiles :floor grid))
-        gold-positions (take (+ 10 (* 2 depth)) candidates)
-        item-positions (take (+ 10 depth) (drop (count gold-positions) candidates))]
+        gold-positions (take (+ 29 depth) candidates)
+        item-positions (take (+ 9 depth) (drop (count gold-positions) candidates))]
     (merge (into {} (for [t (map #(new-item % false) item-positions)] [(:id t) t]))
            (into {} (for [t (map new-gold gold-positions)] [(:id t) t])))))
 

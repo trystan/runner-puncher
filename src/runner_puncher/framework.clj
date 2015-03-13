@@ -27,6 +27,7 @@
 (def blue {:r 0 :g 0 :b 250})
 (def fg {:r 191 :g 191 :b 191})
 (def light {:r 225 :g 225 :b 225})
+(def white {:r 255 :g 255 :b 255})
 (def bg {:r 0 :g 0 :b 0})
 
 (defn add-center-string [t s y]

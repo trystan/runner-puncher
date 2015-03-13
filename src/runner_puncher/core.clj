@@ -21,7 +21,7 @@
            :messages []
            :player {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
                     :description "Trying to find something on the 10th dungeon level."
-                    :id :player :knockback-amount 5 :poison-amount 0 :attack-damage 1
+                    :id :player :knockback-amount 5 :poison-amount 0 :attack 1 :defence 0
                     :is-creature true :going-up 0 :path [] :gold 0
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
                     :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
@@ -102,27 +102,32 @@
         (add-string "live" heart-start 0 fg nil)
         (render-health (:health player) (:max-health player) (:poison-amount player) (+ heart-start 5) 0))))
 
+(defn slot-description [creature slot]
+  (if (get creature slot)
+    (str (clojure.string/capitalize slot) ": " (get-in creature [slot :name]) " - " (get-in creature [slot :description]))
+    (str (clojure.string/capitalize slot) ": none")))
+
 (defn render-target [t game mx my]
   (let [c (creature-at game [mx my])
+        creature-name (.trim (if c (str (:prefix c) " " (:type c)) ""))
         item (item-at game [mx my])
         tile (get tiles (get-in game [:grid [mx my]]))
         x 1
-        y (if (< my 12) 13 2)
-        slot-description (fn [slot]
-                           (if (get c slot)
-                             (str (clojure.string/capitalize slot) ": " (get-in c [slot :name]) " - " (get-in c [slot :description]))
-                             (str (clojure.string/capitalize slot) ": none")))]
+        y (- (global :height-in-characters) 9)
+        y (if (> my y) 4 y)]
     (cond
      c
      (-> t
-         (add-string (str (:prefix c) " " (:type c)) x (+ y 0) fg bg)
+         (add-string creature-name x (+ y 0) fg bg)
          (render-health (:health c) (:max-health c) (:poison-amount c)
-                        (+ (count (str (:prefix c) " " (:type c))) x 1) (+ y 0))
+                        (+ (count creature-name) x 1) (+ y 0))
+         (add-string (str " Attack " (:attack c)) (+ (count creature-name) (:max-health c) (:poison-amount c) 2) (+ y 0) fg bg)
+         (add-string (str " Defence " (:defence c)) (+ (count (str " Attack " (:attack c))) (count creature-name) (:max-health c) (:poison-amount c) 2) (+ y 0) fg bg)
          (add-string (describe-creature c) x (+ y 1) fg bg)
-         (add-string (slot-description "headwear") x (+ y 2) fg bg)
-         (add-string (slot-description "armor") x (+ y 3) fg bg)
-         (add-string (slot-description "footwear") x (+ y 4) fg bg)
-         (add-string (slot-description "weapon") x (+ y 5) fg bg)
+         (add-string (slot-description c "headwear") x (+ y 2) fg bg)
+         (add-string (slot-description c "armor") x (+ y 3) fg bg)
+         (add-string (slot-description c "footwear") x (+ y 4) fg bg)
+         (add-string (slot-description c "weapon") x (+ y 5) fg bg)
          (add-string (str "Standing on " (:name tile)) x (+ y 6) fg bg))
      item
      (-> t
@@ -236,17 +241,26 @@
 (defn render-store-item [t [index item]]
   (if item
     (-> t
-        (add-string (str (inc index) ". ($" (:price item) ") " (:name item)) 5 (+ (* 3 index) 7) light nil)
-        (add-string (str "    " (:description item)) 5 (+ (* 3 index) 8) fg nil))
-    (add-string t (str (inc index) ". -- out of stock --") 5 (+ (* 3 index) 7) fg nil)))
+        (add-string (str (inc index) ". ($" (:price item) ") " (:name item)) 5 (+ (* 2 index) 7) white nil)
+        (add-string (str "    " (:description item)) 5 (+ (* 2 index) 8) fg nil))
+    (add-string t (str (inc index) ". -- out of stock --") 5 (+ (* 2 index) 7) fg nil)))
 
 (defn render-store-items [t items]
-  (reduce render-store-item t (for [i (range 0 (count items))] [i (nth items i)])))
+  (let [x 5
+        y 25
+        player (get @game-atom :player)
+        t (reduce render-store-item t (for [i (range 0 (count items))] [i (nth items i)]))]
+    (-> t
+        (add-string (str "You have $" (get-in @game-atom [:player :gold]) ". You are currently wearing:") x (+ y 1) white bg)
+        (add-string (slot-description player "headwear") x (+ y 2) fg bg)
+        (add-string (slot-description player "armor") x (+ y 3) fg bg)
+        (add-string (slot-description player "footwear") x (+ y 4) fg bg)
+        (add-string (slot-description player "weapon") x (+ y 5) fg bg))))
 
 (defn maybe-buy-item [index]
   (let [player (get @game-atom :player)
         item (nth @store-atom index)]
-    (if (<= (:price item) (:gold player))
+    (when (<= (:price item) (:gold player))
       (swap! game-atom apply-purchace item)
       (swap! store-atom assoc index nil))))
 
@@ -254,7 +268,6 @@
                                        (add-center-string "Welcome to the store between levels!" 2)
                                        (render-store-items @store-atom)
                                        (add-center-string "Press 1 through 9 to buy something." 4)
-                                       (add-center-string "(These items don't do anything yet)" 5)
                                        (add-center-string "-- press Enter to go to the next level --" (- (global :height-in-characters) 2))))
                  :on-key-press (fn [e]
                                 (case (to-keyword e)
