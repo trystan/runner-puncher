@@ -24,8 +24,7 @@
                     :id :player :knockback-amount 5 :poison-amount 0 :attack-damage 1
                     :is-creature true :going-up 0 :path [] :gold 0
                     :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
-                    :inventory []
-                    :x 5 :y 9 :dungeon-level 9 :direction [0 0]}}]
+                    :x 5 :y 9 :dungeon-level 1 :direction [0 0]}}]
     (-> g
         (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
         (add-message "You are RUNNER_PUNCHER."))))

@@ -42,6 +42,9 @@
 
 (defn enter-store [game]
   (swap! store-atom restock-store-items)
+  (let [affect (get-in game [:player :affect-prices] 0)
+        apply-discount (fn [i] (update i :price #(+ % affect)))]
+    (swap! store-atom #(mapv apply-discount %)))
   (push-screen (:store-screen game)))
 
 (defn creature-at [g xy]
@@ -66,6 +69,10 @@
 (defn nearby [x1 y1 x2 y2 minimum maximum]
   (let [distance-squared (+ (Math/pow (- x1 x2) 2) (Math/pow (- y1 y2) 2))]
     (<= (* minimum minimum) distance-squared (* maximum maximum))))
+
+(defn spawn-creature-at [game x y]
+  (let [c (new-enemy [x y])]
+    (into game [[(:id c) c]])))
 
 (defn spawn-creature-near [game x y]
   (let [candidates (filter (fn [[x2 y2]] (nearby x y x2 y2 4 9)) (find-tiles :floor (:grid game)))
@@ -113,17 +120,25 @@
     (= [(:x c2) (:y c2)] (last points))))
 
 (defn knockback-creature [game id dx dy]
-  (if (= 0 dx dy)
-    game
-    (let [kb (fn [c] (if (:immune-to-knockback c)
-                       c
-                       (-> c
-                           (assoc :is-knocked-back true)
-                           (assoc :path (until-blocked game (bresenham (:x c)
-                                                                       (:y c)
-                                                                       (+ dx (:x c))
-                                                                       (+ dy (:y c))))))))]
-      (update-in game [id] kb))))
+  (let [resistance-points (get-in game [id :resist-knockback] 0)
+        resistance (loop [r 1.0
+                          p resistance-points]
+                     (if (= 0 p)
+                       r
+                       (recur (* 0.5 r) (dec p))))
+        dx (int (* dx resistance))
+        dy (int (* dy resistance))]
+    (if (= 0 dx dy)
+      game
+      (let [kb (fn [c] (if (:immune-to-knockback c)
+                         c
+                         (-> c
+                             (assoc :is-knocked-back true)
+                             (assoc :path (until-blocked game (bresenham (:x c)
+                                                                         (:y c)
+                                                                         (+ dx (:x c))
+                                                                         (+ dy (:y c))))))))]
+        (update-in game [id] kb)))))
 
 (defn embiggen-creature [c]
   (if (= (clojure.string/upper-case (:char c)) (:char c))
@@ -136,12 +151,14 @@
         (assoc :immune-to-knockback true))))
 
 (defn poison-creature [c]
-  (-> c
-      (assoc :poison-amount (inc (:poison-amount c 0)))
-      (update :max-health dec)
-      (update :health dec)
-      (update :max-steps dec)
-      (update :knockback-amount dec)))
+  (if (> (:ignore-poison c 0) 0)
+    c
+    (-> c
+        (assoc :poison-amount (inc (:poison-amount c 0)))
+        (update :max-health dec)
+        (update :health dec)
+        (update :max-steps dec)
+        (update :knockback-amount dec))))
 
 (defn unpoison-creature-once [c]
   (if (> (:poison-amount c 0) 0)
@@ -167,7 +184,7 @@
       (-> game
           (update id-from end-movement)
           (update id-to affect-fn)
-          (update-in [id-to :health] #(- % (:attack-damage attacker)))
+          (update-in [id-to :health] #(- % (max 1 (- (:attack-damage attacker 1) (:resist-damage attacked 0)))))
           (knockback-creature id-to dx dy)))))
 
 (defn move-downstairs [game k]
@@ -245,31 +262,40 @@
           (spawn-creature-near (+ 2 x) (+ 2 y)))
       game)))
 
+(defn acid-floor [game k x y]
+  (if (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game k))))
+    (update-in game [k :health] dec)
+    game))
+
 (defn move-to [game k nx ny]
-  (let [x (get-in game [k :x])
-        y (get-in game [k :y])
-        direction [(- nx x) (- ny y)]
-        target (get tiles (get-in game [:grid [nx ny]]) out-of-bounds)
-        other-id (:id (creature-at game [nx ny]))]
-    (cond
-     (and (not (:is-knocked-back (get game k)))
-          (= :web-floor (get-in game [:grid [x y]])))
-     (-> game
-         (assoc-in [:grid [x y]] :floor)
-         (update k end-movement)
-         (add-message "You free yourself from the web."))
-     (and (not (nil? other-id)) (not= k other-id))
-     (attack-creature game k other-id)
-     (:walkable target)
-     (-> game
-         (update :tick inc)
-         (open-door nx ny)
-         (assoc-in [k :direction] direction)
-         (assoc-in [k :x] nx)
-         (assoc-in [k :y] ny)
-         (use-stairs k)
-         (pickup-item k))
-     :else game)))
+  (if (= 0 nx ny)
+    game
+    (let [x (get-in game [k :x])
+          y (get-in game [k :y])
+          direction [(- nx x) (- ny y)]
+          target (get tiles (get-in game [:grid [nx ny]]) out-of-bounds)
+          other-id (:id (creature-at game [nx ny]))]
+      (cond
+       (and (not (:is-knocked-back (get game k)))
+            (= :web-floor (get-in game [:grid [x y]]))
+            (not (:ignore-webs (get game k))))
+       (-> game
+           (assoc-in [:grid [x y]] :floor)
+           (update k end-movement)
+           (add-message "You free yourself from the web."))
+       (and (not (nil? other-id)) (not= k other-id))
+       (attack-creature game k other-id)
+       (:walkable target)
+       (-> game
+           (update :tick inc)
+           (open-door nx ny)
+           (assoc-in [k :direction] direction)
+           (assoc-in [k :x] nx)
+           (assoc-in [k :y] ny)
+           (acid-floor k nx ny)
+           (use-stairs k)
+           (pickup-item k))
+       :else game))))
 
 (defn consume-step [creature]
   (if (:is-knocked-back creature)
@@ -288,6 +314,20 @@
         (update-in [k :path] rest)
         (update-in [k] consume-step))))
 
+(defn ensure-walls [game]
+  (let [new-walls (for [x (range 0 (global :width-in-characters))
+                        y (range 0 (global :height-in-characters))
+                        :let [t (get-in game [:grid [x y]])
+                              neighbors (for [xo (range -1 2)
+                                              yo (range -1 2)
+                                              :when (not (= 0 xo yo))]
+                                          (get-in game [:grid [(+ x xo) (+ y yo)]]))
+                              ok (all? #(or (nil? %) (= :wall %)) neighbors)]
+                        :when (and (nil? t) (not ok))]
+                    [[x y] :wall])]
+    (println "ensure-walls" new-walls)
+    (update game :grid #(merge % (into {} new-walls)))))
+
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
@@ -301,7 +341,7 @@
             getter #(get replacements % %)
             replace-fn (fn [g xy]
                          (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
-        (reduce replace-fn game neighborhood))
+        (ensure-walls (reduce replace-fn game neighborhood)))
       :knockback
       (let [amount (second (:on-death creature))
             neighborhood (for [xo (range -1 2)
@@ -352,6 +392,15 @@
                             (update-in g [(:id c) :health] dec)
                             g)))]
         (reduce affect-fn game neighborhood))
+      :summon-others
+      (let [neighborhood (for [xo (range -1 2)
+                               yo (range -1 2)]
+                           [(+ x xo) (+ y yo)])
+            affect-fn (fn [g [x y]]
+                          (if (and (get-in game [:grid [x y] :walkable]) (creature-at game [x y]))
+                            g
+                            (spawn-creature-at g x y)))]
+        (reduce affect-fn game neighborhood))
       game)))
 
 (defn remove-dead-creatures [game]
@@ -370,7 +419,9 @@
         toward-player (second (bresenham (:x c) (:y c) (get-in game [:player :x]) (get-in game [:player :y])))
         [tx ty] (if (and (creature-can-see-creature game k :player) (not (occupied-by-ally toward-player)))
                   toward-player
-                  (rand-nth candidates))]
+                  (if (empty? candidates)
+                    [0 0]
+                    (rand-nth candidates)))]
     (move-to game k tx ty)))
 
 (defn move-enemies [game]

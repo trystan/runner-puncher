@@ -35,7 +35,12 @@
                :name "web covered floor"
                :walkable true
                :fg (hsl 220  5 60)
-               :bg (hsl 220 25  5)}})
+               :bg (hsl 220 25  5)}
+   :acid-floor {:char (str (char 7))
+                :name "acid covered floor"
+                :walkable true
+                :fg (hsl 100 33 50)
+                :bg (hsl 220 25  5)}})
 
 (defn room-to-tiles [room]
   (let [rows (seq (.split room "\n"))
@@ -356,26 +361,36 @@
                                :description "Leaves webs behind when it dies."
                                :on-death [:replace-tiles {:floor :web-floor}]
                                :on-attack [:replace-tiles {:floor :web-floor}]}
-                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 60 s l)
+                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 30 s l)
                                :description "Knocks others back when it dies or attacks."
                                :on-death [:knockback 3] :knockback-amount 3}
-                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 120 s l)
+                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 60 s l)
                                :description "Poisons others when it dies or attacks."
                                :on-death [:poison]
                                :on-attack [:poison]
                                :attack-damage 0}
-                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 180 s l)
+                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 90 s l)
                                :description "Does extra damage to others when it dies or attacks."
                                :on-death [:damage 1]
                                :attack-damage 2}
-                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 240 s l)
+                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 120 s l)
                                :description "Embiggens others when it dies."
-                               :on-death [:embiggen]}]))))
+                               :on-death [:embiggen]}
+                              {:prefix "Acid" :type "monster" :char "a" :fg (hsl 150 s l)
+                               :description "Leaves acid pools when it dies."
+                               :on-death [:replace-tiles {:floor :acid-floor}]}
+                              {:prefix "Null" :type "monster" :char "n" :fg (hsl 180 s l)
+                               :description "Nulifies nearby walls when it dies."
+                               :on-death [:replace-tiles {:wall :floor :door :floor}]}
+                              {:prefix "Summoning" :type "monster" :char "s" :fg (hsl 210 s l)
+                               :description "Summons others when it dies."
+                               :on-death [:summon-others]}]))))
 
 
 (defn random-item [is-store-item]
   (let [prefix (rand-nth [{:name "heavy" :description "Reduce movement by 1." :effect {:max-steps -1}}
-                          {:name "sturdy" :description "Immune to acid." :effect {:resist-acid 1}}])
+                          {:name "uncomfortable" :description "Reduce knockback by 1." :effect {:knockback-amount -1}}
+                          {:name "smelly" :description "Increase shop item costs by $5." :effect {:affect-prices 5}}])
         noun (rand-nth [{:char "[" :slot "footwear" :name "shoes"}
                         {:char "]" :slot "armor" :name "cape"}
                         {:char "(" :slot "headwear" :name "helm"}
@@ -388,14 +403,18 @@
                             :effect {:max-health 1 :health 1}}
                            {:name "of standing" :description "Resist knockback 50%."
                             :effect {:resist-knockback 1}}
-                           {:name "of vitality" :description "Immunity to poison."
+                           {:name "of anti-poison" :description "Immunity to poison attacks."
                             :effect {:ignore-poison 1}}
                            {:name "of charming" :description "Lower shop item costs by $3."
                             :effect {:affect-prices -3}}
                            {:name "of protection" :description "Reduce damage by 1 to minimum of 1."
                             :effect {:resist-damage 1}}
+                           {:name "of attacking" :description "Increase attack damage by 1."
+                            :effect {:attack-damage 1}}
                            {:name "of webwalking" :description "Immunity to webs."
-                            :effect {:ignore-webs 1}}])
+                            :effect {:ignore-webs 1}}
+                           {:name "of acidwalking" :description "Immunity to acid pools."
+                            :effect {:ignore-acid-floor 1}}])
         [prefix postfix] (cond
                           is-store-item
                           [prefix postfix]
