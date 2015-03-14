@@ -1,5 +1,6 @@
 (ns runner_puncher.creatures
-  (:require [runner_puncher.framework :refer :all]))
+  (:require [runner_puncher.framework :refer :all]
+            [runner_puncher.util :refer :all]))
 
 (defn describe-creature [creature]
   (let [d (:description creature)
@@ -74,14 +75,14 @@
    :id :player :knockback-amount 5 :poison-amount 0 :attack 1 :defence 0
    :is-creature true :going-up 0 :path [] :gold 0
    :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
-   :x 5 :y 9 :dungeon-level 1 :direction [0 0]})
+   :x 5 :y 9 :dungeon-level 1 :difficulty 1 :direction [0 0]})
 
 (def enemy-prefixes [{:prefix "Web" :char "w"
                       :description "Leaves webs behind when it dies." :ignore-webs 1
                       :on-death [:replace-tiles {:floor :web-floor} 3]}
                      {:prefix "Knockback" :char "k"
                       :description "Knocks others back when it dies or attacks."
-                      :on-death [:knockback 3] :knockback-amount 3}
+                      :on-death [:knockback 5] :knockback-amount 5}
                      {:prefix "Poison" :char "p"
                       :description "Poisons others when it dies or attacks."
                       :on-death [:poison]
@@ -97,7 +98,7 @@
                      {:prefix "Acid" :char "a"
                       :description "Leaves acid pools when it dies." :ignore-acid-floor 1
                       :on-death [:replace-tiles {:floor :acid-floor} 1]}
-                     {:prefix "Null" :char "n"
+                     {:prefix "Nullifier" :char "n"
                       :description "Nulifies nearby tiles when it dies."
                       :on-death [:replace-tiles {:wall :floor :door :floor
                                                  :web-floor :floor :acid-floor :floor} 1]}
@@ -112,12 +113,12 @@
       :on-death []}
      {:type "knight"  :fg (hsl  45 s l) :description "Strong armor and weapons."
       :on-death []
-      :attack 1 :defence 2 :resist-knockback 1
+      :attack 2 :defence 2 :max-health 2 :health 2 :resist-knockback 1
       "weapon" {:name "Sword" :description "+1 attack."}
       "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
      {:type "archer" :fg (hsl  90 s l) :description "Ranged attacker."
       :on-death [] :ranged-attack 1
-      "weapon" {:name "bow" :description "Shoots arrows. Not accurate."}}
+      "weapon" {:name "Bow" :description "Shoots arrows. Not accurate."}}
      {:type "wizard"  :fg (hsl 135 s l) :description "Teleports."
       :on-death []
       :teleportitis 1}
@@ -128,7 +129,8 @@
       "weapon" {:name "Dagger" :description ""}}
      {:type "guard"   :fg (hsl 270 s l) :description "Hard to take down."
       :on-death []
-      :defence 3 :health 3 :max-health 3 :resist-knockback 1
+      :defence 3 :health 3 :max-health 3 :resist-knockback 2
+      "footwear" {:name "Heavy boots" :description "Resist knockback 50%."}
       "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
      {:type "baker"   :fg (hsl 315 s l) :description "Does not belong in dungeons."
       :on-death []
@@ -150,15 +152,15 @@
                     (println "berge-fn" a b)))]
     (map (partial merge-with merge-fn) pre main)))
 
-(defn new-enemy [enemy-catalog [x y]]
-  (let [default {:is-creature true :steps-remaining 1 :max-steps 1
+(defn new-enemy [difficulty enemy-catalog [x y]]
+  (let [valid-enemies (take (+ 1 difficulty) enemy-catalog)
+        default {:is-creature true :steps-remaining 1 :max-steps 1
                  :health 1 :max-health 1 :attack 1 :defence 0
                  :knockback-amount 0 :poison-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
-    (merge default (rand-nth enemy-catalog))))
+    (merge default (rand-nth valid-enemies))))
 
 
-(defn make-creatures [grid depth enemy-catalog candidate-positions]
-  (let [positions (take (+ 8 (* 4 depth)) (shuffle candidate-positions))
-        valid-enemies (take (+ 1 depth) enemy-catalog)]
-    (into {} (for [c (map #(new-enemy valid-enemies %) positions)] [(:id c) c]))))
+(defn make-creatures [grid difficulty enemy-catalog candidate-positions]
+  (let [positions (take (+ 10 (* 2 difficulty)) (shuffle candidate-positions))]
+    (into {} (for [c (map #(new-enemy difficulty enemy-catalog %) positions)] [(:id c) c]))))

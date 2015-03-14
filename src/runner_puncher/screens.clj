@@ -202,6 +202,7 @@
   (-> {}
       (add-center-string "RUNNER_PUNCHER" 2)
       (add-center-string "A 2015 7DRL by Trystan Spangler" 3)
+      (add-center-string (str "You must find the amulet on the " final-floor-depth "th floor and return to the surface.") 6)
       (add-center-string "-- press Enter to start --" (- (global :height-in-characters) 2))))
 
 (defn on-key-press-start-screen [e]

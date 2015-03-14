@@ -5,7 +5,6 @@
 
 (def min-x 0)
 (def min-y 1)
-(def final-floor-depth 5)
 
 (def out-of-bounds {:walkable false :name "unknown"})
 (def tiles
@@ -371,11 +370,13 @@
         amulet (make-amulet target)]
     [grid {(:id amulet) amulet}]))
 
-(defn generate-level [depth enemy-catalog stairs-x stairs-y start-x start-y stairs-from stairs-to]
+(defn generate-level [depth difficulty enemy-catalog stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)
         [grid amulet] (if (= final-floor-depth depth)
                         (replace-down-stairs-with-amulet grid)
-                        [grid {}])]
+                        [grid {}])
+        floors (find-tiles :floor grid)]
     (merge {:grid grid}
-           (make-creatures grid depth enemy-catalog (find-tiles :floor grid))
-           (make-treasures grid depth (find-tiles :floor grid)) amulet)))
+           (make-creatures grid difficulty enemy-catalog floors)
+           (make-treasures grid difficulty floors)
+           amulet)))

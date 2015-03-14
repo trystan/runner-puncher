@@ -115,7 +115,7 @@
     (reduce apply-projectile-damage game expired-projectiles)))
 
 (defn spawn-creature-at [game x y allow-sumoner]
-  (let [c (new-enemy (:enemy-catalog game) [x y])]
+  (let [c (new-enemy (get-in game [:player :difficulty]) (:enemy-catalog game) [x y])]
     (if (and (not allow-sumoner) (= [:summon-others] (:on-death c)))
       (spawn-creature-at game x y allow-sumoner)
       (into game [[(:id c) c]]))))
@@ -124,7 +124,7 @@
   (let [candidates (filter (fn [[x2 y2]] (nearby x y x2 y2 4 9)) (find-tiles :floor (:grid game)))
         c (if (empty? candidates)
             nil
-            (new-enemy (:enemy-catalog game) (rand-nth candidates)))]
+            (new-enemy (get-in game [:player :difficulty]) (:enemy-catalog game) (rand-nth candidates)))]
     (if c
       (into game [[(:id c) c]])
       game)))
@@ -227,8 +227,9 @@
     (-> game
         (remove-enemies)
         (remove-items)
-        (merge (generate-level (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
+        (merge (generate-level (inc (:dungeon-level creature)) (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
         (update-in [:player :dungeon-level] inc)
+        (update-in [:player :difficulty] inc)
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
@@ -240,8 +241,9 @@
     (-> game
         (remove-enemies)
         (remove-items)
-        (merge (generate-level (dec (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
+        (merge (generate-level (dec (:dungeon-level creature)) (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
         (update-in [:player :dungeon-level] dec)
+        (update-in [:player :difficulty] inc)
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
@@ -357,8 +359,8 @@
     (ensure-walls game)))
 
 (defn apply-knockback-blast [game x y amount]
-  (let [neighborhood (for [xo (range -1 2)
-                           yo (range -1 2)]
+  (let [neighborhood (for [xo (range -2 3)
+                           yo (range -2 3)]
                        [(+ x xo) (+ y yo)])
         creature-at (fn [g xy] (first (for [[id e] g
                                             :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
@@ -474,7 +476,7 @@
         candidates (find-tiles :floor (:grid game))
         candidates (remove #(creature-at game %) candidates)
         candidates (if (< (rand) 0.5)
-                     (filter (fn [[x y]] (nearby x y (:x player) (:y player) 3 6)) candidates)
+                     (filter (fn [[x y]] (nearby x y (:x player) (:y player) 1 3)) candidates)
                      (filter (fn [[x y]] (nearby x y (:x player) (:y player) 20 90)) candidates))
         [tx ty] (rand-nth candidates)]
     (-> game
@@ -554,5 +556,5 @@
            :messages []
            :player (new-player [5 9])}]
     (-> g
-        (merge (generate-level 1 (:enemy-catalog g) 4 9 5 9 :stairs-up :stairs-down))
+        (merge (generate-level 1 1 (:enemy-catalog g) 4 9 5 9 :stairs-up :stairs-down))
         (add-message :player "You are RUNNER_PUNCHER."))))

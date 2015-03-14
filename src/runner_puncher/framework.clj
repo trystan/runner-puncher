@@ -7,7 +7,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
-
 (def game-atom (atom {}))
 
 (def globals-atom (atom {}))
