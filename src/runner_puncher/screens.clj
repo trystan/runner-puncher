@@ -37,15 +37,26 @@
 (defn render-creatures [t creatures]
   (reduce render-creature t creatures))
 
+(defn render-effect [t e]
+  (add-string t (:char e) (:x e) (:y e) (:fg e) (:bg e)))
+
+(defn render-effects [t effects]
+  (reduce render-effect t effects))
+
 (defn render-player-path [t points]
-  (let [add-one (fn [t [x y]] (add-string t nil x y nil (hsl 60 40 40)))]
-    (reduce add-one t points)))
+  (let [add-ok (fn [t [x y]] (add-string t nil x y nil (hsl 60 40 40)))]
+    (reduce add-ok t points)))
 
 (defn render-target-line [t points]
   (let [grid (:grid @game-atom)
-        ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) points)
-        add-one (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 40 40) (hsl 0 40 40))))]
-    (reduce add-one t points)))
+        walk-points (take (get-in @game-atom [:player :steps-remaining]) (drop 1 points))
+        too-far-points (drop (+ (count walk-points) 1) points)
+        ok (all? (fn [xy] (:walkable ((get grid xy out-of-bounds) tiles))) walk-points)
+        add-walk-point (fn [t [x y]] (add-string t nil x y nil (if ok (hsl 60 33 33) (hsl 0 33 33))))
+        add-too-far-point (fn [t [x y]] (add-string t nil x y nil (hsl 60 25 25)))
+        t (reduce add-walk-point t walk-points)
+        t (reduce add-too-far-point t too-far-points)]
+    t))
 
 (defn render-counters [t current maximum poison c color x y]
   (-> t
@@ -60,7 +71,7 @@
         runner-start (- puncher-start (:max-steps player) (:poison-amount player) 4 3)]
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
-        (add-string (str "Level " (:dungeon-level player)) 1 0 fg nil)
+        (add-string (str "Level " (:dungeon-level player) " going " (if (:going-up player) "up" "down")) 1 0 fg nil)
 
         (add-string (str "$" (:gold player)) (- runner-start 4) 0 (hsl 60 50 50) nil)
 
@@ -125,7 +136,7 @@
   (let [game @game-atom
         [mx my] (:target game)
         player (:player game)
-        line (take (:steps-remaining player) (drop 1 (bresenham (:x player) (:y player) mx my)))
+        line (bresenham (:x player) (:y player) mx my)
         render-target-fn (if (empty? (:path player))
                            #(render-target-line % line)
                            #(render-player-path % (:path player)))]
@@ -134,6 +145,7 @@
         (render-items (items game))
         (render-creatures (enemies game))
         (render-creature player)
+        (render-effects (filter :is-effect (map second game)))
         (render-target-fn)
         (render-hud player)
         (render-target game mx my)
@@ -159,8 +171,11 @@
 
 (defn update-play-screen [e]
   (let [player (get @game-atom :player)
-        creatures (conj (enemies @game-atom) player)]
+        creatures (conj (enemies @game-atom) player)
+        effects (filter :is-effect (map second @game-atom))]
     (cond
+     (not (empty? effects))
+     (swap! game-atom update-effects)
      (not (all? empty? (map :path creatures)))
      (doseq [c creatures
              :when (and (seq? (:path c)) (> (count (:path c)) 0))]
@@ -170,9 +185,9 @@
        (swap! game-atom move-enemies)
        (swap! game-atom assoc-in [:player :steps-remaining] (:max-steps player)))
      :else
-     (swap! game-atom remove-dead-creatures))
-    (when (< (get-in @game-atom [:player :health]) 1)
-      (swap-screen lose-screen))))
+     (if (< (get-in @game-atom [:player :health]) 1)
+       (swap-screen lose-screen)
+       (swap! game-atom remove-dead-enemies)))))
 
 (def play-screen {:on-render render-play-screen
                   :on-key-press key-press-play-screen
@@ -269,8 +284,8 @@
 ;; -------- lose screen -------- ;;
 
 (defn render-lose-screen []
-  (-> {}
-      (add-center-string "You lost" 2)
+  (-> (render-play-screen)
+      (add-center-string "You are dead" 2)
       (add-center-string "-- press Enter to start again --" (- (global :height-in-characters) 2))))
 
 (defn on-key-press-lose-screen [e]

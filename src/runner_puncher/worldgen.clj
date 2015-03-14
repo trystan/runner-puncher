@@ -5,7 +5,7 @@
 
 (def min-x 0)
 (def min-y 1)
-(def final-floor-depth 10)
+(def final-floor-depth 5)
 
 (def out-of-bounds {:walkable false :name "unknown"})
 (def tiles

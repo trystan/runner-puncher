@@ -6,6 +6,9 @@
         d (str d (if (:immune-to-knockback creature) " Immune to knockback." ""))]
     d))
 
+(defn creature-name [creature]
+  (str (:prefix creature) " " (:type creature)))
+
 (defn describe-slot [creature slot]
   (if (get creature slot)
     (str (clojure.string/capitalize slot) ": " (get-in creature [slot :name]) " - " (get-in creature [slot :description]))
@@ -77,8 +80,7 @@
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
     (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 s l)
                                :description "Leaves webs behind when it dies."
-                               :on-death [:replace-tiles {:floor :web-floor}]
-                               :on-attack [:replace-tiles {:floor :web-floor}]}
+                               :on-death [:replace-tiles {:floor :web-floor} 3]}
                               {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 30 s l)
                                :description "Knocks others back when it dies or attacks."
                                :on-death [:knockback 3] :knockback-amount 3}
@@ -96,11 +98,11 @@
                                :on-death [:embiggen]}
                               {:prefix "Acid" :type "monster" :char "a" :fg (hsl 150 s l)
                                :description "Leaves acid pools when it dies."
-                               :on-death [:replace-tiles {:floor :acid-floor}]}
+                               :on-death [:replace-tiles {:floor :acid-floor} 1]}
                               {:prefix "Null" :type "monster" :char "n" :fg (hsl 180 s l)
                                :description "Nulifies nearby tiles when it dies."
                                :on-death [:replace-tiles {:wall :floor :door :floor
-                                                          :web-floor :floor :acid-floor :floor}]}
+                                                          :web-floor :floor :acid-floor :floor} 1]}
                               {:prefix "Summoning" :type "monster" :char "s" :fg (hsl 210 s l)
                                :description "Summons others when it dies."
                                :on-death [:summon-others]}]))))

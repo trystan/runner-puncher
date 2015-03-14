@@ -5,8 +5,22 @@
             [runner_puncher.items :refer :all]
             [runner_puncher.util :refer :all]))
 
-(defn add-message [game message]
-  (update game :messages #(conj % {:text message :at (:tick game)})))
+(defn add-message [game id message]
+  (if (= :player id)
+    (update game :messages #(conj % {:text message :at (:tick game)}))
+    game))
+
+(defn add-effect [game x y ttl c fg bg]
+  (let [effect {:is-effect true :x x :y y :ttl ttl :char c :fg fg :bg bg :id (str "effect-" (.toString (java.util.UUID/randomUUID)))}]
+    (assoc game (:id effect) effect)))
+
+(defn update-effects [game]
+  (into {} (for [[id e] game
+                 :let [ttl (:ttl e)]
+                 :when (or (nil? ttl) (> ttl 1))]
+             (if (:is-effect e)
+               [id (assoc e :ttl (dec ttl))]
+               [id e]))))
 
 (defn drop-item [game player item]
   (-> game
@@ -29,8 +43,8 @@
                            g))
         existing-item (get-in game [:player (:slot item)])
         message-player (fn [g] (if existing-item
-                      (add-message g (str "You drop your " (:name existing-item) " and pick up " (:name item) "."))
-                      (add-message g (str "You stop to pick up " (:name item)))))]
+                      (add-message g :player (str "You drop your " (:name existing-item) " and pick up " (:name item) "."))
+                      (add-message g :player (str "You stop to pick up " (:name item)))))]
     (-> game
         (message-player)
         (unequip-slot (:slot item))
@@ -75,9 +89,11 @@
   (for [[_ e] game :when (:is-item e)] e))
 
 
-(defn spawn-creature-at [game x y]
+(defn spawn-creature-at [game x y allow-sumoner]
   (let [c (new-enemy [x y])]
-    (into game [[(:id c) c]])))
+    (if (and (not allow-sumoner) (= [:summon-others] (:on-death c)))
+      (spawn-creature-at game x y allow-sumoner)
+      (into game [[(:id c) c]]))))
 
 (defn spawn-creature-near [game x y]
   (let [candidates (filter (fn [[x2 y2]] (nearby x y x2 y2 4 9)) (find-tiles :floor (:grid game)))
@@ -142,8 +158,16 @@
     (update game id-from end-movement)
     (let [attacker (get game id-from)
           attacked (get game id-to)
+          damage (max 1 (- (:attack attacker 1) (:defence attacked 0)))
           dx (- (:x attacked) (:x attacker))
           dy (- (:y attacked) (:y attacker))
+          show-message (fn [g] (cond
+                                (= :player id-from)
+                                (add-message g :player (str "You punch the " (creature-name attacked) "."))
+                                (= :player id-to)
+                                (add-message g :player (str "The " (creature-name attacked) " hits you for " damage " damage."))
+                                :else
+                                g))
           [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])
           affect-fn (if (= [:poison] (:on-attack attacker))
                       poison-creature
@@ -151,7 +175,8 @@
       (-> game
           (update id-from end-movement)
           (update id-to affect-fn)
-          (update-in [id-to :health] #(- % (max 1 (- (:attack attacker 1) (:defence attacked 0)))))
+          (update-in [id-to :health] #(- % damage))
+          (show-message)
           (knockback-creature id-to dx dy)))))
 
 (defn move-upstairs [game id]
@@ -176,7 +201,7 @@
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
-        (add-message (str "You decend to level " (inc (:dungeon-level creature)) ".")))))
+        (add-message :player (str "You go down into dungeon level " (inc (:dungeon-level creature)) ".")))))
 
 (defn exit-store-upstairs [game]
   (let [creature (get game :player)
@@ -189,7 +214,7 @@
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
-        (add-message (str "You acend to level " (inc (:dungeon-level creature)) ".")))))
+        (add-message :player (str "You go up to dungeon level " (inc (:dungeon-level creature)) ".")))))
 
 (defn use-stairs [game id]
   (if (not= :player id)
@@ -207,12 +232,22 @@
           game)
         game))))
 
-(defn open-door [game x y]
-  (if (= :door (get-in game [:grid [x y]]))
-    (-> game
-        (assoc-in [:grid [x y]] :floor)
-        (add-message "You punch the door off its hinges."))
-    game))
+(defn open-door [game id x y]
+  (let [c (get game id)
+        msg (cond
+             (and (= :player id) (:is-knocked-back c))
+             "You fly back through the door."
+             (= :player id)
+             "You punch the door off its hinges."
+             (:is-knocked-back c)
+             (str "The " (creature-name c) " breaks through the door.")
+             :else
+             (str "The " (creature-name c) " opens the door."))]
+    (if (= :door (get-in game [:grid [x y]]))
+      (-> game
+          (assoc-in [:grid [x y]] :floor)
+          (add-message :player msg))
+      game)))
 
 (defn pickup-item [game id]
   (let [x (get-in game [id :x])
@@ -246,13 +281,13 @@
        (-> game
            (assoc-in [:grid [x y]] :floor)
            (update id end-movement)
-           (add-message "You free yourself from the web."))
+           (add-message id "You free yourself from the web."))
        (and (not (nil? other-id)) (not= id other-id))
        (attack-creature game id other-id)
        (:walkable target)
        (-> game
            (update :tick inc)
-           (open-door nx ny)
+           (open-door id nx ny)
            (assoc-in [id :direction] direction)
            (assoc-in [id :x] nx)
            (assoc-in [id :y] ny)
@@ -268,18 +303,30 @@
         (update-in [id :path] rest)
         (update-in [id] consume-step))))
 
-(defn apply-replace-tiles-blast [game x y replacements]
-  (let [neighborhood (for [xo (range -1 2)
-                           yo (range -1 2)]
-                       [(+ x xo) (+ y yo)])
+(defn apply-replace-tiles-blast [game x y replacements radius]
+  (let [get-points (if (any? #(= :wall %) (map first replacements))
+                     (fn [dx dy] (bresenham x y (+ x dx) (+ y dy)))
+                     (fn [dx dy] (until-blocked game (bresenham x y (+ x dx) (+ y dy)))))
+        neighborhood (concat [[x y]]
+                             (get-points radius 0)
+                             (get-points radius radius)
+                             (get-points 0 radius)
+                             (get-points 0 0)
+                             (get-points (- radius) 0)
+                             (get-points (- radius) (- radius))
+                             (get-points 0 (- radius))
+                             (get-points (- radius) radius)
+                             (get-points radius (- radius)))
         getter #(get replacements % %)
-        replace-fn (fn [g xy] (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))]
-    (ensure-walls (reduce replace-fn game neighborhood))))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 12 "*" white nil))
+        replace-fn (fn [g xy] (assoc-in g [:grid xy] (getter (get-in g [:grid xy]))))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce replace-fn game neighborhood)]
+    (ensure-walls game)))
 
 (defn apply-knockback-blast [game x y amount]
   (let [neighborhood (for [xo (range -1 2)
-                           yo (range -1 2)
-                           :when (not= xo yo 0)]
+                           yo (range -1 2)]
                        [(+ x xo) (+ y yo)])
         creature-at (fn [g xy] (first (for [[id e] g
                                             :when (and (:is-creature e) (= xy [(:x e) (:y e)]))]
@@ -290,8 +337,11 @@
                           dy (if c (* amount (- (:y c) y)) 0)]
                       (if c
                         (knockback-creature g (:id c) dx dy)
-                        g)))]
-    (reduce affect-fn game neighborhood)))
+                        g)))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 3 "*" white nil))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce affect-fn game neighborhood)]
+    game))
 
 (defn apply-embiggen-blast [game x y]
   (let [neighborhood (for [xo (range -1 2)
@@ -301,20 +351,25 @@
                     (let [c (creature-at game xy)]
                       (if c
                         (update g (:id c) embiggen-creature)
-                        g)))]
-    (reduce affect-fn game neighborhood)))
+                        g)))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 3 "*" white nil))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce affect-fn game neighborhood)]
+    game))
 
-(defn apply-poison-blast [game x y ]
+(defn apply-poison-blast [game x y]
   (let [neighborhood (for [xo (range -1 2)
-                           yo (range -1 2)
-                           :when (not= xo yo 0)]
+                           yo (range -1 2)]
                        [(+ x xo) (+ y yo)])
         affect-fn (fn [g xy]
                     (let [c (creature-at game xy)]
                       (if c
                         (update g (:id c) poison-creature)
-                        g)))]
-    (reduce affect-fn game neighborhood)))
+                        g)))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 3 "*" white nil))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce affect-fn game neighborhood)]
+    game))
 
 (defn apply-damage-blast [game x y amount]
   (let [neighborhood (for [xo (range -1 2)
@@ -324,8 +379,11 @@
                     (let [c (creature-at game xy)]
                       (if c
                         (update-in g [(:id c) :health] dec)
-                        g)))]
-    (reduce affect-fn game neighborhood)))
+                        g)))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 3 "*" white nil))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce affect-fn game neighborhood)]
+    game))
 
 (defn apply-summon-blast [game x y]
   (let [neighborhood (for [xo (range -1 2)
@@ -334,16 +392,20 @@
         affect-fn (fn [g [x y]]
                     (if (and (get-in game [:grid [x y] :walkable]) (creature-at game [x y]))
                       g
-                      (spawn-creature-at g x y)))]
-    (reduce affect-fn game neighborhood)))
+                      (spawn-creature-at g x y false)))
+        add-effect-fn (fn [g [x y]] (add-effect g x y 3 "*" white nil))
+        game (reduce add-effect-fn game neighborhood)
+        game (reduce affect-fn game neighborhood)]
+    game))
 
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
-        y (:y creature)]
+        y (:y creature)
+        game (add-message game :player (str "The " (creature-name creature) " dies."))]
     (case (first (:on-death creature))
       :replace-tiles
-      (apply-replace-tiles-blast game x y (second (:on-death creature)))
+      (apply-replace-tiles-blast game x y (second (:on-death creature)) (nth (:on-death creature) 2))
       :knockback
       (apply-knockback-blast game x y (second (:on-death creature)))
       :embiggen
@@ -356,8 +418,8 @@
       (apply-summon-blast game x y)
       game)))
 
-(defn remove-dead-creatures [game]
-  (let [deads (for [[id e] game :when (and (:health e) (< (:health e) 1))] id)]
+(defn remove-dead-enemies [game]
+  (let [deads (for [[id e] game :when (and (not (= :player id)) (:health e) (< (:health e) 1))] id)]
     (reduce dissoc (reduce apply-on-death game deads) deads)))
 
 (defn move-enemy [game id]
@@ -369,7 +431,8 @@
                      [(+ (:x c) xo) (+ (:y c) yo)])
         candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
         candidates (remove occupied-by-ally candidates)
-        toward-player (second (bresenham (:x c) (:y c) (get-in game [:player :x]) (get-in game [:player :y])))
+        player (get game :player {:x 0 :y 0})
+        toward-player (second (bresenham (:x c) (:y c) (:x player) (:y player)))
         [tx ty] (if (and (creature-can-see-creature game id :player) (not (occupied-by-ally toward-player)))
                   toward-player
                   (if (empty? candidates)
@@ -378,7 +441,7 @@
     (move-to game id tx ty)))
 
 (defn move-enemies [game]
-  (let [game (remove-dead-creatures game)
+  (let [game (remove-dead-enemies game)
         ids (map :id (enemies game))]
     (reduce move-enemy game ids)))
 
@@ -416,4 +479,4 @@
            :player (new-player [5 9])}]
     (-> g
         (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
-        (add-message "You are RUNNER_PUNCHER."))))
+        (add-message :player "You are RUNNER_PUNCHER."))))
