@@ -81,8 +81,14 @@
   {:price 0 :name item-name :slot (:slot noun) :description description
    :effect effect :char (:char noun) :fg light}))
 
+(defn make-health-potion [[x y]]
+  {:is-item true :name "Health potion" :char "!" :fg white
+   :description "Instantly recover one health."
+   :effect {:health 1}
+   :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))})
+
 (defn make-amulet [[x y]]
-  {:is-item true :name "The amulet" :char "*" :fg (hsl 80 99 99)
+  {:is-item true :name "The amulet" :char "*" :fg white
    :description "The reason you are down here."
    :effect {:going-up 1}
    :x x :y y :id (keyword "item-" (.toString (java.util.UUID/randomUUID)))})
@@ -101,6 +107,8 @@
 (defn make-treasures [grid difficulty candidate-positions]
   (let [candidates (shuffle candidate-positions)
         gold-positions (take (+ 34 (* 3 difficulty)) candidates)
-        item-positions (take (+ 14 (* 3 difficulty)) (drop (count gold-positions) candidates))]
+        item-positions (take (+ 14 (* 3 difficulty)) (drop (count gold-positions) candidates))
+        potion-positions (take 1 (drop (+ (count gold-positions) (count item-positions)) candidates))]
     (merge (into {} (for [t (map #(new-item % false) item-positions)] [(:id t) t]))
-           (into {} (for [t (map new-gold gold-positions)] [(:id t) t])))))
+           (into {} (for [t (map new-gold gold-positions)] [(:id t) t]))
+           (into {} (for [t (map make-health-potion potion-positions)] [(:id t) t])))))

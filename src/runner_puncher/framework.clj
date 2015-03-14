@@ -34,7 +34,7 @@
 
 (defn add-center-string [t s y]
   (let [x (int (/ (- (global :width-in-characters) (count s)) 2))]
-    (add-string t s x y fg nil)))
+    (add-string t s x y fg bg)))
 
 
 (def screen-stack-atom (atom ()))

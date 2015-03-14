@@ -299,8 +299,8 @@
 
 (defn render-lose-screen []
   (-> (render-play-screen)
-      (add-center-string "You are dead" 2)
-      (add-center-string "-- press Enter to start again --" (- (global :height-in-characters) 2))))
+      (add-center-string "You are dead" (int (- (/ (global :height-in-characters) 2) 1)))
+      (add-center-string "-- press Enter to start again --" (int (+ (/ (global :height-in-characters) 2) 1)))))
 
 (defn on-key-press-lose-screen [e]
   (case (to-keyword e)

@@ -69,10 +69,10 @@
         lookup {\# :wall
                 \. :floor
                 \+ :door
-                \a (rand-nth [:spikes :wall :wall])
-                \b (rand-nth [:spikes :wall :wall])
-                \c (rand-nth [:spikes :wall :wall])
-                \d (rand-nth [:spikes :wall :wall])
+                \a (rand-nth [:spikes :floor :wall])
+                \b (rand-nth [:spikes :floor :wall])
+                \c (rand-nth [:spikes :floor :wall])
+                \d (rand-nth [:spikes :floor :wall])
                 \1 (rand-nth [:floor :floor :wall])
                 \2 (rand-nth [:floor :floor :wall])
                 \3 (rand-nth [:floor :floor :wall])
@@ -364,17 +364,26 @@
     (merge grid stairs)))
 
 (defn fix-spikes [grid]
-  (reduce (fn [g xy] (cond
-                      (= :floor (get grid (map + xy [0 1])))
-                      (assoc g xy :spikes-n)
-                      (= :floor (get grid (map + xy [0 -1])))
-                      (assoc g xy :spikes-s)
-                      (= :floor (get grid (map + xy [1 0])))
-                      (assoc g xy :spikes-w)
-                      (= :floor (get grid (map + xy [-1 0])))
-                      (assoc g xy :spikes-e)
-                      :else
-                      (assoc g xy :wall))) grid (find-tiles :spikes grid)))
+  (reduce (fn [g xy]
+            (let [n-floor (= :floor (get grid (map + xy [0 1])))
+                  n-wall (= :wall (get grid (map + xy [0 1])))
+                  s-floor (= :floor (get grid (map + xy [0 -1])))
+                  s-wall (= :wall (get grid (map + xy [0 -1])))
+                  w-floor (= :floor (get grid (map + xy [1 0])))
+                  w-wall (= :wall (get grid (map + xy [1 0])))
+                  e-floor (= :floor (get grid (map + xy [-1 0])))
+                  e-wall (= :wall (get grid (map + xy [-1 0])))]
+              (cond
+               (and n-wall s-floor)
+               (assoc g xy :spikes-s)
+               (and s-wall n-floor)
+               (assoc g xy :spikes-n)
+               (and w-wall e-floor)
+               (assoc g xy :spikes-e)
+               (and e-wall w-floor)
+               (assoc g xy :spikes-w)
+               :else
+               (assoc g xy :wall)))) grid (find-tiles :spikes grid)))
 
 (defn fix-tiles [grid]
   (let [grid (fix-spikes grid)

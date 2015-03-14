@@ -131,8 +131,7 @@
       "weapon" {:name "Dagger" :description ""}}
      {:type "guard"   :fg (hsl 270 s l) :description "Hard to take down."
       :on-death []
-      :defence 3 :health 3 :max-health 3 :resist-knockback 2
-      "footwear" {:name "Heavy boots" :description "Resist knockback 50%."}
+      :defence 3 :health 3 :max-health 3 :resist-knockback 1
       "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
      {:type "baker"   :fg (hsl 315 s l) :description "Does not belong in dungeons."
       :on-death []

@@ -48,7 +48,8 @@
         (message-player)
         (unequip-slot (:slot item))
         (set-slot)
-        (update :player #(merge-with + % (:effect item))))))
+        (update :player #(merge-with + % (:effect item)))
+        (update :player (fn [p] (update p :health #(min % (:max-health p))))))))
 
 (defn apply-purchace [game item]
   (-> game
@@ -117,7 +118,7 @@
 
 (defn spawn-creature-at [game x y allow-sumoner]
   (let [c (new-enemy (get-in game [:player :difficulty]) (:enemy-catalog game) [x y])]
-    (if (and (not allow-sumoner) (= [:summon-others] (:on-death c)))
+    (if (and (not allow-sumoner) (any? #(= % [:summon-others]) (:on-death c)))
       (spawn-creature-at game x y allow-sumoner)
       (into game [[(:id c) c]]))))
 
@@ -207,7 +208,7 @@
       (-> game
           (update id-from end-movement)
           (update id-to affect-fn)
-          (update-in [id-to :health] #(- % damage))
+          (update-in [id-to :health] #(max 0 (- % damage)))
           (show-message)
           (knockback-creature id-to dx dy)))))
 
