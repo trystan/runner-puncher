@@ -1,7 +1,8 @@
 (ns runner_puncher.worldgen
   (:require [runner_puncher.framework :refer :all]
             [runner_puncher.creatures :refer :all]
-            [runner_puncher.items :refer :all]))
+            [runner_puncher.items :refer :all]
+            [runner_puncher.util :refer :all]))
 
 (def min-x 0)
 (def min-y 1)
@@ -17,6 +18,26 @@
           :name "wall"
           :fg (hsl 220 33 60)
           :bg (hsl 220 33 40)}
+   :spikes-n {:char (str (char 31))
+              :name "spike wall"
+              :walkable true :instadeath true
+              :fg (hsl 220 33 60)
+              :bg (hsl 220 25  5)}
+   :spikes-s {:char (str (char 30))
+              :name "spike wall"
+              :walkable true :instadeath true
+              :fg (hsl 220 33 60)
+              :bg (hsl 220 25  5)}
+   :spikes-w {:char (str (char 16))
+              :name "spike wall"
+              :walkable true :instadeath true
+              :fg (hsl 220 33 60)
+              :bg (hsl 220 25  5)}
+   :spikes-e {:char (str (char 17))
+              :name "spike wall"
+              :walkable true :instadeath true
+              :fg (hsl 220 33 60)
+              :bg (hsl 220 25  5)}
    :door {:char "+"
           :name "door"
           :walkable true
@@ -48,13 +69,17 @@
         lookup {\# :wall
                 \. :floor
                 \+ :door
-                \1 (rand-nth [:floor :floor :floor :wall])
-                \2 (rand-nth [:floor :floor :floor :wall])
-                \3 (rand-nth [:floor :floor :floor :wall])
-                \4 (rand-nth [:floor :floor :floor :wall])
-                \5 (rand-nth [:floor :floor :floor :wall])
-                \8 (rand-nth [:door :wall])
-                \9 (rand-nth [:door :wall])}]
+                \a (rand-nth [:spikes :wall :wall])
+                \b (rand-nth [:spikes :wall :wall])
+                \c (rand-nth [:spikes :wall :wall])
+                \d (rand-nth [:spikes :wall :wall])
+                \1 (rand-nth [:floor :floor :wall])
+                \2 (rand-nth [:floor :floor :wall])
+                \3 (rand-nth [:floor :floor :wall])
+                \4 (rand-nth [:floor :floor :wall])
+                \5 (rand-nth [:floor :floor :wall])
+                \8 (rand-nth [:door :wall :wall])
+                \9 (rand-nth [:door :wall :wall])}]
     (into {} (for [x (range (count (first rows)))
                    y (range (count rows))]
                [[x y] (lookup (nth (nth rows y) x))]))))
@@ -88,9 +113,9 @@
         "#1111.....2222#\n"
         "#11.........22#\n"
         "#1...........2#\n"
-        "#1...........2#\n"
-        "#.............#\n"
-        "#.............#\n"
+        "#1....a55....2#\n"
+        "#.....a55.....#\n"
+        "#.....a55.....#\n"
         "+.............+\n"
         "#.............#\n"
         "#.............#\n"
@@ -99,78 +124,106 @@
         "#44.........33#\n"
         "#4444.....3333#\n"
         "#######+#######")
-   (str "####8####+####\n"
+   (str "####8dddd+####\n"
         "#222......222#\n"
         "#22...33...22#\n"
         "#2..........2#\n"
         "+...4....4...+\n"
-        "#.....11.....#\n"
-        "#.3..1111..3.#\n"
-        "#.3..1111..3.#\n"
-        "#.....11.....#\n"
+        "a.....11.....b\n"
+        "a.3..1111..3.b\n"
+        "a.3..1111..3.b\n"
+        "a.....11.....b\n"
         "+...4....4...+\n"
         "#2..........2#\n"
         "#22...33...22#\n"
         "#222......222#\n"
-        "####+####9####")
-   (str "####8####+####9####\n"
-        "#1....2.....2....1#\n"
-        "#..44...333...44..#\n"
-        "+.4444.53335.4444.+\n"
-        "#..44...333...44..#\n"
-        "#1....2.....2....1#\n"
-        "####9####+####8####")
-   (str "#####8####9####8#####\n"
-        "#11...............11#\n"
-        "#1......33333......1#\n"
-        "8.......33333.......9\n"
-        "#.......33333.......#\n"
-        "#...................#\n"
-        "#.....222###222.....#\n"
-        "#.....2#######2.....#\n"
-        "9.....2#######2.....8\n"
-        "#.....#########.....#\n"
-        "#4...4#########4...4#\n"
-        "###+#############+###")
-   (str "###+###8###9##\n"
-        "#1...2...2..1#\n"
-        "+............9\n"
-        "#............#\n"
-        "##33333333..2#\n"
-        "###3333333...#\n"
-        "####333333...8\n"
-        "#####33333...#\n"
-        "######3333..2#\n"
-        "#######333...#\n"
-        "########33...+\n"
-        "#########3...#\n"
-        "##########..1#\n"
-        "###########+##")
-   (str "###9####8########\n"
+        "####+cccc9####")
+   (str "#####8#####+#####9#####\n"
+        "#11....22.....22....11#\n"
+        "#...44....33a....44...#\n"
+        "+..4444...33a...4444..+\n"
+        "#...bb....33a....44...#\n"
+        "#11....22.....22....11#\n"
+        "#####9#####+#####8#####")
+   (str "#####8#####\n"
+        "#11.......+\n"
+        "#1.......b#\n"
+        "8........b#\n"
+        "a........b#\n"
+        "a.........+\n"
+        "a.....222##\n"
+        "a.....2####\n"
+        "9.....2####\n"
+        "#.....#####\n"
+        "#4...4#####\n"
+        "###+#######")
+   (str "###+###8aaaa9###\n"
+        "#..............#\n"
+        "#..............#\n"
+        "+..............9\n"
+        "#..............b\n"
+        "#..............b\n"
+        "##33333333.....b\n"
+        "###3333333.....b\n"
+        "####333333.....8\n"
+        "#####33333.....#\n"
+        "######3333.....#\n"
+        "#######333.....#\n"
+        "########33.....+\n"
+        "#########3.....#\n"
+        "##########.....#\n"
+        "############+###")
+   (str "###9bbbb8########\n"
         "#..........######\n"
-        "#..........######\n"
-        "+..........######\n"
         "#..........1#####\n"
+        "+..........1#####\n"
         "#..........11####\n"
+        "#..........1111##\n"
+        "##1111..........#\n"
         "####11..........#\n"
+        "#####1..........+\n"
         "#####1..........#\n"
-        "######..........+\n"
         "######..........#\n"
-        "######..........#\n"
-        "########8####9###")
+        "########8aaaa9###")
    (str "##############+#########\n"
-        "#############..#########\n"
-        "#############....#######\n"
-        "#############......#####\n"
+        "##########b....#########\n"
+        "##########b........#####\n"
+        "###.....a#b............+\n"
+        "#.......a#b............#\n"
+        "#.......a#b............#\n"
+        "+.......a#b............+\n"
+        "#..............##......#\n"
+        "#..............##....###\n"
+        "###.................####\n"
+        "###.................####\n"
+        "###########....#ccc#####\n"
+        "############+#+#########")
+   (str "##############+#########\n"
+        "###########....#########\n"
+        "####ccc..........#######\n"
+        "###................#####\n"
+        "#....................###\n"
+        "#...........a11........#\n"
+        "+...........a11........+\n"
+        "#...........a11........#\n"
+        "#....................###\n"
+        "###................#####\n"
+        "#######..........#######\n"
+        "########bbb....#########\n"
+        "##############+#########")
+   (str "##############+#########\n"
+        "###########....#########\n"
+        "#######..........#######\n"
+        "###................#####\n"
         "#....................###\n"
         "#......................#\n"
         "+......................+\n"
         "#......................#\n"
-        "#....................###\n"
-        "#############......#####\n"
-        "#############....#######\n"
-        "#############..#########\n"
-        "##############+#########")
+        "###....................#\n"
+        "#####................###\n"
+        "#######..........#######\n"
+        "#########....###########\n"
+        "#########+##############")
    (str "########+########\n"
         "######3...3######\n"
         "######.....######\n"
@@ -186,13 +239,13 @@
         "######.....######\n"
         "######3...3######\n"
         "########+########")
-   (str "#########+#########\n"
+   (str "###bbbb##+##aaaa###\n"
         "#3...............3#\n"
-        "#.................#\n"
-        "#.......222.......#\n"
-        "+.......222.......+\n"
-        "#.......222.......#\n"
-        "#.................#\n"
+        "#.......ddd.......#\n"
+        "#......c222c......#\n"
+        "+......c222c......+\n"
+        "#......c222c......#\n"
+        "#.......ddd.......#\n"
         "#3...............3#\n"
         "####11.......11####\n"
         "#####1.......1#####\n"
@@ -203,11 +256,11 @@
         "######...######\n"
         "#####.....#####\n"
         "####.......####\n"
-        "###....3....###\n"
+        "###..3.a.3..###\n"
         "##....121....##\n"
-        "+....32223....+\n"
+        "+....c222d....+\n"
         "##....121....##\n"
-        "###....3....###\n"
+        "###..3.b.3..###\n"
         "####.......####\n"
         "#####.....#####\n"
         "######...######\n"
@@ -221,15 +274,6 @@
 
 (defn find-tiles [tile grid]
   (for [[xy t] grid :when (= t tile)] xy))
-
-(defn all? [p coll]
-  (= (count coll) (count (filter p coll))))
-
-(defn any? [p coll]
-  (> (count (filter p coll)) 0))
-
-(defn map-keys [f m]
-  (into {} (map (fn [[k v]] [(f k) v]) m)))
 
 (defn position-room [room ox oy]
   (map-keys #(mapv + % [ox oy]) room))
@@ -319,20 +363,41 @@
         stairs (into {} (for [xy positions] [xy tile]))]
     (merge grid stairs)))
 
+(defn fix-spikes [grid]
+  (reduce (fn [g xy] (cond
+                      (= :floor (get grid (map + xy [0 1])))
+                      (assoc g xy :spikes-n)
+                      (= :floor (get grid (map + xy [0 -1])))
+                      (assoc g xy :spikes-s)
+                      (= :floor (get grid (map + xy [1 0])))
+                      (assoc g xy :spikes-w)
+                      (= :floor (get grid (map + xy [-1 0])))
+                      (assoc g xy :spikes-e)
+                      :else
+                      (assoc g xy :wall))) grid (find-tiles :spikes grid)))
+
 (defn fix-tiles [grid]
-  (let [doors (concat (find-tiles :stairs-up grid) (find-tiles :stairs-down grid))
-        fix-near-door (fn [grid [x y]]
-                        (merge grid
-                               (into {} (for [ox [-1 0 1]
-                                              oy [-1 0 1]
-                                              :let [tile (get grid [(+ x ox) (+ y oy)])]]
-                                          [[(+ x ox) (+ y oy)] (or tile :wall)]))))
-        fixed (reduce fix-near-door grid doors)
+  (let [grid (fix-spikes grid)
+        stairs (concat (find-tiles :stairs-up grid) (find-tiles :stairs-down grid))
+        fix-near-stairs (fn [g [x y]]
+                          (merge g
+                                 (into {} (for [ox [-1 0 1]
+                                                oy [-1 0 1]
+                                                :let [tile (get g [(+ x ox) (+ y oy)])]]
+                                            [[(+ x ox) (+ y oy)] (or tile :wall)]))))
+        near-doors (for [[x y] (find-tiles :door grid)
+                         :when (< (rand) 0.9)
+                         :let [r (rand-nth [1 2 2 2 3 3])]
+                         ox (range (- r) (inc r))
+                         oy (range (- r) (inc r))]
+                     [(+ x ox) (+ y oy)])
+        grid (reduce fix-near-stairs grid stairs)
+        fixed (reduce #(assoc %1 %2 :floor) grid near-doors)
         walkable-neighbors (fn [x y] (count (for [ox [-1 0 1]
                                                   oy [-1 0 1]
                                                   :let [tile (get grid [(+ x ox) (+ y oy)])]
                                                   :when (:walkable (get tiles tile))]
-                                       1)))]
+                                              1)))]
     (into {} (for [[[x y] tile] fixed
                    :when (or (not= :wall tile) (< 0 (walkable-neighbors x y)))]
                [[x y] tile]))))
@@ -376,7 +441,7 @@
                         (replace-down-stairs-with-amulet grid)
                         [grid {}])
         floors (find-tiles :floor grid)]
-    (merge {:grid grid}
-           (make-creatures grid difficulty enemy-catalog floors)
-           (make-treasures grid difficulty floors)
-           amulet)))
+    (ensure-walls (merge {:grid grid}
+                         (make-creatures grid difficulty enemy-catalog floors)
+                         (make-treasures grid difficulty floors)
+                         amulet))))

@@ -69,11 +69,11 @@
         item-name [(:name noun)]
         item-name (if prefix (concat [(:name prefix)] item-name) item-name)
         item-name (if postfix (concat item-name [(:name postfix)]) item-name)
-        item-name (clojure.string/capitalize (clojure.string/join " " item-name))
+        item-name (clojure.string/capitalize (clojure.string/join " " (remove empty? item-name)))
         description []
         description (if prefix (concat description [(:description prefix)]) description)
         description (if postfix (concat description [(:description postfix)]) description)
-        description (clojure.string/capitalize (str (clojure.string/join ", " description) "."))
+        description (clojure.string/capitalize (str (clojure.string/join ", " (remove empty? description)) "."))
         description (if (= 1 (count description)) "" description)
         effect {}
         effect (if prefix (merge-with + effect (:effect prefix)) effect)

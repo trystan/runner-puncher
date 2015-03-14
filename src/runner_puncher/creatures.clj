@@ -101,7 +101,9 @@
                      {:prefix "Nullifier" :char "n"
                       :description "Nulifies nearby tiles when it dies."
                       :on-death [:replace-tiles {:wall :floor :door :floor
-                                                 :web-floor :floor :acid-floor :floor} 1]}
+                                                 :web-floor :floor :acid-floor :floor
+                                                 :spikes-n :floor :spikes-s :floor
+                                                 :spikes-w :floor :spikes-e :floor} 1]}
                      {:prefix "Summoning" :char "s"
                       :description "Summons others when it dies."
                       :on-death [:summon-others]}])

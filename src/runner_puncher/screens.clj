@@ -6,7 +6,8 @@
             [runner_puncher.worldgen :refer :all]
             [runner_puncher.creatures :refer :all]
             [runner_puncher.items :refer :all]
-            [runner_puncher.actions :refer :all])
+            [runner_puncher.actions :refer :all]
+            [runner_puncher.util :refer :all])
   (:gen-class))
 
 
@@ -211,10 +212,13 @@
       (add-center-string "RUNNER_PUNCHER" 2)
       (add-center-string "A 2015 7DRL by Trystan Spangler" 3)
       (add-center-string (str "You must find the amulet on the " final-floor-depth "th floor and return to the surface.") 6)
-      (add-center-string "-- press Enter to start --" (- (global :height-in-characters) 2))))
+      (add-center-string "-- Click or press Enter to start --" (- (global :height-in-characters) 2))))
 
 (defn on-key-press-start-screen [e]
   (case (to-keyword e)
+    :left-click (do
+             (reset! game-atom (new-game win-screen store-screen))
+             (swap-screen play-screen))
     :enter (do
              (reset! game-atom (new-game win-screen store-screen))
              (swap-screen play-screen))
@@ -238,7 +242,7 @@
         y 25
         player (:player @game-atom)]
     (-> (reduce render-store-item t (for [i (range 0 (count items))] [i (nth items i)]))
-        (add-string (str "You have $" (get-in @game-atom [:player :gold]) ". You are currently wearing:") x (+ y 1) white bg)
+        (add-string (str "You have $" (get-in @game-atom [:player :gold]) ". You are currently using:") x (+ y 1) white bg)
         (add-string (describe-slot player "headwear") x (+ y 2) fg bg)
         (add-string (describe-slot player "armor") x (+ y 3) fg bg)
         (add-string (describe-slot player "footwear") x (+ y 4) fg bg)

@@ -300,6 +300,16 @@
     (update-in game [id :health] dec)
     game))
 
+(defn apply-instadeath [game id x y]
+  (let [msg (if (= :player id)
+              "You are impailed on the wall spikes."
+              (str "The " (creature-name (get game id)) " is impailed on the wall spikes."))]
+    (if (:instadeath (tiles (get-in game [:grid [x y]])))
+      (-> game
+          (assoc-in [id :health] 0)
+          (add-message id msg))
+      game)))
+
 (defn move-to [game id nx ny]
   (if (or (= 0 nx ny) (< nx 0) (< ny 0)
           (>= nx (global :width-in-characters)) (>= ny (global :height-in-characters))
@@ -327,6 +337,7 @@
            (assoc-in [id :x] nx)
            (assoc-in [id :y] ny)
            (acid-floor id nx ny)
+           (apply-instadeath id nx ny)
            (use-stairs id)
            (pickup-item id))
        :else game))))
@@ -558,4 +569,5 @@
            :player (new-player [5 9])}]
     (-> g
         (merge (generate-level 1 1 (:enemy-catalog g) 4 9 5 9 :stairs-up :stairs-down))
-        (add-message :player "You are RUNNER_PUNCHER."))))
+        (add-message :player "You are RUNNER_PUNCHER.")
+        (add-message :player "Use the keyboard and enter or the mouse to move."))))
