@@ -183,7 +183,8 @@
      (< (:steps-remaining player) 1)
      (do
        (swap! game-atom move-enemies)
-       (swap! game-atom assoc-in [:player :steps-remaining] (:max-steps player)))
+       (swap! game-atom assoc-in [:player :steps-remaining] (:max-steps player))
+       (swap! game-atom update :tick inc))
      :else
      (if (< (get-in @game-atom [:player :health]) 1)
        (swap-screen lose-screen)

@@ -11,16 +11,15 @@
     game))
 
 (defn add-effect [game x y ttl c fg bg]
-  (let [effect {:is-effect true :x x :y y :ttl ttl :char c :fg fg :bg bg :id (str "effect-" (.toString (java.util.UUID/randomUUID)))}]
+  (let [effect {:is-effect true :x x :y y :ttl ttl :char c
+                :fg fg :bg bg :id (str "effect-" (.toString (java.util.UUID/randomUUID)))}]
     (assoc game (:id effect) effect)))
 
-(defn update-effects [game]
-  (into {} (for [[id e] game
-                 :let [ttl (:ttl e)]
-                 :when (or (nil? ttl) (> ttl 1))]
-             (if (:is-effect e)
-               [id (assoc e :ttl (dec ttl))]
-               [id e]))))
+(defn add-projectile [game x y path c fg bg]
+  (let [effect {:is-effect true :x x :y y :path path :ttl 10 :char c
+                :fg fg :bg bg :id (str "effect-" (.toString (java.util.UUID/randomUUID)))
+                :does-damage true}]
+    (assoc game (:id effect) effect)))
 
 (defn drop-item [game player item]
   (-> game
@@ -88,6 +87,32 @@
 (defn items [game]
   (for [[_ e] game :when (:is-item e)] e))
 
+(defn update-effect [effect]
+  (if (seq (:path effect))
+    (assoc effect
+      :x (first (first (:path effect)))
+      :y (second (first (:path effect)))
+      :path (rest (:path effect)))
+    (update effect :ttl dec)))
+
+(defn apply-projectile-damage [game {:keys [x y]}]
+  (let [c (creature-at game [x y])]
+    (if c
+      (update-in game [(:id c) :health] dec)
+      game)))
+
+(defn update-effects [game]
+  (let [expired-projectiles (for [[id e] game
+                                  :let [ttl (:ttl e 99)]
+                                  :when (and (= ttl 0) (:does-damage e))]
+                              e)
+        game (into {} (for [[id e] game
+                            :let [ttl (:ttl e 99)]
+                            :when (> ttl 0)]
+                        (if (:is-effect e)
+                          [id (update-effect e)]
+                          [id e])))]
+    (reduce apply-projectile-damage game expired-projectiles)))
 
 (defn spawn-creature-at [game x y allow-sumoner]
   (let [c (new-enemy [x y])]
@@ -126,11 +151,14 @@
       (rest remaining))
      :else (rest so-far))))
 
-(defn creature-can-see-creature [game from-id to-id]
+(defn creature-can-see-tile [game from-id x y]
   (let [c1 (get game from-id)
-        c2 (get game to-id)
-        points (until-blocked game (bresenham (:x c1) (:y c1) (:x c2) (:y c2)))]
-    (= [(:x c2) (:y c2)] (last points))))
+        points (until-blocked game (bresenham (:x c1) (:y c1) x y))]
+    (= [x y] (last points))))
+
+(defn creature-can-see-creature [game from-id to-id]
+  (let [c (get game to-id)]
+    (creature-can-see-tile game from-id (:x c) (:y c))))
 
 (defn knockback-creature [game id dx dy]
   (let [resistance-points (get-in game [id :resist-knockback] 0)
@@ -165,12 +193,15 @@
                                 (= :player id-from)
                                 (add-message g :player (str "You punch the " (creature-name attacked) "."))
                                 (= :player id-to)
-                                (add-message g :player (str "The " (creature-name attacked) " hits you for " damage " damage."))
+                                (add-message g :player (str "The " (creature-name attacker) " hits you for " damage " damage."))
                                 :else
                                 g))
           [dx dy] (mapv #(* (:knockback-amount attacker) %) [dx dy])
-          affect-fn (if (= [:poison] (:on-attack attacker))
+          affect-fn (case (:on-attack attacker)
+                      [:poison]
                       poison-creature
+                      [:steal-money]
+                      (fn [c] (assoc c :gold (max 0 (- (:gold c) 10))))
                       identity)]
       (-> game
           (update id-from end-movement)
@@ -267,7 +298,9 @@
     game))
 
 (defn move-to [game id nx ny]
-  (if (= 0 nx ny)
+  (if (or (= 0 nx ny) (< nx 0) (< ny 0)
+          (>= nx (global :width-in-characters)) (>= ny (global :height-in-characters))
+          (nil? (get-in game [:grid [nx ny]])))
     game
     (let [x (get-in game [id :x])
           y (get-in game [id :y])
@@ -286,7 +319,6 @@
        (attack-creature game id other-id)
        (:walkable target)
        (-> game
-           (update :tick inc)
            (open-door id nx ny)
            (assoc-in [id :direction] direction)
            (assoc-in [id :x] nx)
@@ -398,47 +430,90 @@
         game (reduce affect-fn game neighborhood)]
     game))
 
+(defn apply-respawn [game creature]
+  (let [c (unpoison-creature creature)
+        c (assoc c
+            :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))
+            :max-health (inc (:max-health creature 1))
+            :health (inc (:max-health creature 1)))]
+    (-> game
+        (merge {(:id c) c})
+        (add-message :player (str "The " (creature-name creature) " gets back up.")))))
+
 (defn apply-on-death [game id]
   (let [creature (get game id)
         x (:x creature)
         y (:y creature)
-        game (add-message game :player (str "The " (creature-name creature) " dies."))]
-    (case (first (:on-death creature))
-      :replace-tiles
-      (apply-replace-tiles-blast game x y (second (:on-death creature)) (nth (:on-death creature) 2))
-      :knockback
-      (apply-knockback-blast game x y (second (:on-death creature)))
-      :embiggen
-      (apply-embiggen-blast game x y)
-      :poison
-      (apply-poison-blast game x y)
-      :damage
-      (apply-damage-blast game x y (second (:on-death creature)))
-      :summon-others
-      (apply-summon-blast game x y)
-      game)))
+        game (add-message game :player (str "The " (creature-name creature) " dies."))
+        apply-effect (fn [g effect]
+                       (case (first effect)
+                         :replace-tiles
+                         (apply-replace-tiles-blast g x y (second effect) (nth effect 2))
+                         :knockback
+                         (apply-knockback-blast g x y (second effect))
+                         :embiggen
+                         (apply-embiggen-blast g x y)
+                         :poison
+                         (apply-poison-blast g x y)
+                         :damage
+                         (apply-damage-blast g x y (second effect))
+                         :summon-others
+                         (apply-summon-blast g x y)
+                         :respawn
+                         (apply-respawn g creature)
+                         g))]
+    (reduce apply-effect game (:on-death creature))))
 
 (defn remove-dead-enemies [game]
   (let [deads (for [[id e] game :when (and (not (= :player id)) (:health e) (< (:health e) 1))] id)]
     (reduce dissoc (reduce apply-on-death game deads) deads)))
 
+(defn teleport-enemy [game id]
+  (let [player (get game :player)
+        creature (get game id)
+        candidates (find-tiles :floor (:grid game))
+        candidates (remove #(creature-at game %) candidates)
+        candidates (if (< (rand) 0.5)
+                     (filter (fn [[x y]] (nearby x y (:x player) (:y player) 3 6)) candidates)
+                     (filter (fn [[x y]] (nearby x y (:x player) (:y player) 20 90)) candidates))
+        [tx ty] (rand-nth candidates)]
+    (-> game
+        (add-effect (:x creature) (:y creature) 6 "*" light nil)
+        (add-effect tx ty 6 "*" light nil)
+        (move-to id tx ty))))
+
+(defn ranged-attack [game id tx ty]
+  (let [attacker (get game id)
+        path (bresenham (:x attacker) (:y attacker) tx ty)]
+    (add-projectile game (:x attacker) (:y attacker) path "*" red nil)))
+
 (defn move-enemy [game id]
-  (let [c (get game id)
-        occupied-by-ally (fn [xy] (any? #(= xy [(:x %) (:y %)]) (enemies game)))
-        candidates (for [xo (range -1 2)
-                         yo (range -1 2)
-                         :when (not (= 0 xo yo))]
-                     [(+ (:x c) xo) (+ (:y c) yo)])
-        candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
-        candidates (remove occupied-by-ally candidates)
-        player (get game :player {:x 0 :y 0})
-        toward-player (second (bresenham (:x c) (:y c) (:x player) (:y player)))
-        [tx ty] (if (and (creature-can-see-creature game id :player) (not (occupied-by-ally toward-player)))
-                  toward-player
-                  (if (empty? candidates)
-                    [0 0]
-                    (rand-nth candidates)))]
-    (move-to game id tx ty)))
+  (let [player (get game :player {:x 0 :y 0})
+        ranged-target-x (+ (:x player) (rand-nth [-2 -1 0 1 2]))
+        ranged-target-y (+ (:y player) (rand-nth [-2 -1 0 1 2]))
+        can-see-target (creature-can-see-tile game id ranged-target-x ranged-target-y)]
+    (cond
+     (and (get-in game [id :teleportitis]) (< (rand) 0.2))
+     (teleport-enemy game id)
+     (and (get-in game [id :ranged-attack]) can-see-target)
+     (ranged-attack game id ranged-target-x ranged-target-y)
+     :else
+     (let [c (get game id)
+           occupied-by-ally (fn [xy] (any? #(= xy [(:x %) (:y %)]) (enemies game)))
+           candidates (for [xo (range -1 2)
+                            yo (range -1 2)
+                            :when (not (= 0 xo yo))]
+                        [(+ (:x c) xo) (+ (:y c) yo)])
+           candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
+           candidates (remove occupied-by-ally candidates)
+           player (get game :player {:x 0 :y 0})
+           toward-player (second (bresenham (:x c) (:y c) (:x player) (:y player)))
+           [tx ty] (if (and (creature-can-see-creature game id :player) (not (occupied-by-ally toward-player)))
+                     toward-player
+                     (if (empty? candidates)
+                       [0 0]
+                       (rand-nth candidates)))]
+       (move-to game id tx ty)))))
 
 (defn move-enemies [game]
   (let [game (remove-dead-enemies game)

@@ -7,7 +7,7 @@
     d))
 
 (defn creature-name [creature]
-  (str (:prefix creature) " " (:type creature)))
+  (.trim (str (:prefix creature) " " (:type creature))))
 
 (defn describe-slot [creature slot]
   (if (get creature slot)
@@ -53,6 +53,11 @@
         (update :knockback-amount inc))
     creature))
 
+(defn unpoison-creature [creature]
+  (if (> (:poison-amount creature 0) 0)
+    (unpoison-creature (unpoison-creature-once creature))
+    creature))
+
 (defn consume-step [creature]
   (if (:is-knocked-back creature)
     (if (empty? (:path creature))
@@ -71,41 +76,86 @@
    :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
    :x 5 :y 9 :dungeon-level 1 :direction [0 0]})
 
-(defn new-enemy [[x y]]
+(def enemy-prefixes [{:prefix "Web" :char "w"
+                      :description "Leaves webs behind when it dies." :ignore-webs 1
+                      :on-death [:replace-tiles {:floor :web-floor} 3]}
+                     {:prefix "Knockback" :char "k"
+                      :description "Knocks others back when it dies or attacks."
+                      :on-death [:knockback 3] :knockback-amount 3}
+                     {:prefix "Poison" :char "p"
+                      :description "Poisons others when it dies or attacks."
+                      :on-death [:poison]
+                      :on-attack [:poison]
+                      :attack 0}
+                     {:prefix "Deadly" :char "d"
+                      :description "Does extra damage to others when it dies or attacks."
+                      :on-death [:damage 1]
+                      :attack 2}
+                     {:prefix "Embiggening" :char "e"
+                      :description "Embiggens others when it dies."
+                      :on-death [:embiggen]}
+                     {:prefix "Acid" :char "a"
+                      :description "Leaves acid pools when it dies." :ignore-acid-floor 1
+                      :on-death [:replace-tiles {:floor :acid-floor} 1]}
+                     {:prefix "Null" :char "n"
+                      :description "Nulifies nearby tiles when it dies."
+                      :on-death [:replace-tiles {:wall :floor :door :floor
+                                                 :web-floor :floor :acid-floor :floor} 1]}
+                     {:prefix "Summoning" :char "s"
+                      :description "Summons others when it dies."
+                      :on-death [:summon-others]}])
+
+(def enemy-types
   (let [s 75
-        l 75
-        default {:is-creature true :steps-remaining 1 :max-steps 1
+        l 75]
+    [{:type "noob"    :fg (hsl   0 s l) :description ""
+      :on-death []}
+     {:type "knight"  :fg (hsl  45 s l) :description "Strong armor and weapons."
+      :on-death []
+      :attack 1 :defence 2 :resist-knockback 1
+      "weapon" {:name "Sword" :description "+1 attack."}
+      "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
+     {:type "archer" :fg (hsl  90 s l) :description "Ranged attacker."
+      :on-death [] :ranged-attack 1
+      "weapon" {:name "bow" :description "Shoots arrows. Not accurate."}}
+     {:type "wizard"  :fg (hsl 135 s l) :description "Teleports."
+      :on-death []
+      :teleportitis 1}
+     {:type "zombie"  :fg (hsl 180 s l) :description "Keeps coming back."
+      :on-death [:respawn]}
+     {:type "thief"   :fg (hsl 225 s l) :description "Steals money."
+      :on-death [] :on-attack [:steal-money]
+      "weapon" {:name "Dagger" :description ""}}
+     {:type "guard"   :fg (hsl 270 s l) :description "Hard to take down."
+      :on-death []
+      :defence 3 :health 3 :max-health 3 :resist-knockback 1
+      "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
+     {:type "baker"   :fg (hsl 315 s l) :description "Does not belong in dungeons."
+      :on-death []
+      "weapon" {:name "Baguette" :description "+0 attack."}
+      "headwear" {:name "Chef's hat" :description "+0 defence."}}]))
+
+(def enemy-catalog
+  (let [pre (shuffle enemy-prefixes)
+        main (shuffle enemy-types)
+        merge-fn (fn [a b]
+                   (cond
+                    (integer? a)
+                    (+ a  b)
+                    (string? a)
+                    (.trim (str a " " b))
+                    (vector? a)
+                    [a b]
+                    :else
+                    (println "berge-fn" a b)))]
+    (map (partial merge-with merge-fn) pre main)))
+
+(defn new-enemy [[x y]]
+  (let [default {:is-creature true :steps-remaining 1 :max-steps 1
                  :health 1 :max-health 1 :attack 1 :defence 0
                  :knockback-amount 0 :poison-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
-    (merge default (rand-nth [{:prefix "Web" :type "monster" :char "w" :fg (hsl 0 s l)
-                               :description "Leaves webs behind when it dies."
-                               :on-death [:replace-tiles {:floor :web-floor} 3]}
-                              {:prefix "Knockback" :type "monster" :char "k" :fg (hsl 30 s l)
-                               :description "Knocks others back when it dies or attacks."
-                               :on-death [:knockback 3] :knockback-amount 3}
-                              {:prefix "Poison" :type "monster" :char "p" :fg (hsl 60 s l)
-                               :description "Poisons others when it dies or attacks."
-                               :on-death [:poison]
-                               :on-attack [:poison]
-                               :attack 0}
-                              {:prefix "Deadly" :type "monster" :char "d" :fg (hsl 90 s l)
-                               :description "Does extra damage to others when it dies or attacks."
-                               :on-death [:damage 1]
-                               :attack 2}
-                              {:prefix "Embiggening" :type "monster" :char "e" :fg (hsl 120 s l)
-                               :description "Embiggens others when it dies."
-                               :on-death [:embiggen]}
-                              {:prefix "Acid" :type "monster" :char "a" :fg (hsl 150 s l)
-                               :description "Leaves acid pools when it dies."
-                               :on-death [:replace-tiles {:floor :acid-floor} 1]}
-                              {:prefix "Null" :type "monster" :char "n" :fg (hsl 180 s l)
-                               :description "Nulifies nearby tiles when it dies."
-                               :on-death [:replace-tiles {:wall :floor :door :floor
-                                                          :web-floor :floor :acid-floor :floor} 1]}
-                              {:prefix "Summoning" :type "monster" :char "s" :fg (hsl 210 s l)
-                               :description "Summons others when it dies."
-                               :on-death [:summon-others]}]))))
+    (merge default (rand-nth enemy-catalog))))
 
 
 (defn make-creatures [grid depth candidate-positions]
