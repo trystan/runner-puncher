@@ -3,34 +3,61 @@
 
 
 (defn random-item [is-store-item]
-  (let [prefix (rand-nth [{:name "heavy" :description "-1 movement." :effect {:max-steps -1}}
-                          {:name "uncomfortable" :description "-1 knockback." :effect {:knockback-amount -1}}
-                          {:name "smelly" :description "Increase shop prices by $5." :effect {:affect-prices 5}}
-                          {:name "decent" :description "" :effect {}}])
-        noun (rand-nth [{:char "[" :slot "footwear" :name "shoes"}
-                        {:char "]" :slot "armor" :name "cape"}
-                        {:char "(" :slot "headwear" :name "helm"}
-                        {:char ")" :slot "weapon" :name "knuckles"}])
-        postfix (rand-nth [{:name "of running" :description "+2 movement."
-                            :effect {:max-steps 2}}
-                           {:name "of punching" :description "+2 knockback."
-                            :effect {:knockback-amount 2}}
-                           {:name "of life" :description "+1 life."
-                            :effect {:max-health 1 :health 1}}
-                           {:name "of standing" :description "Resist knockback 50%."
-                            :effect {:resist-knockback 1}}
-                           {:name "of anti-poison" :description "Ignore poison attacks."
-                            :effect {:ignore-poison 1}}
-                           {:name "of charming" :description "Decrease shop prices by $5."
-                            :effect {:affect-prices -3}}
-                           {:name "of defense" :description "+1 defence."
-                            :effect {:defence 1}}
-                           {:name "of attack" :description "+1 attack."
-                            :effect {:attack 1}}
-                           {:name "of webwalking" :description "Ignore webs."
-                            :effect {:ignore-webs 1}}
-                           {:name "of acidwalking" :description "Ignore acid pools."
-                            :effect {:ignore-acid-floor 1}}])
+  (let [data (rand-nth [{:base {:char "[" :slot "footwear" :name "shoes"}
+                         :prefixes [{:name "heavy" :description "-1 movement" :effect {:max-steps -1}}
+                                    {:name "uncomfortable" :description "-1 knockback" :effect {:knockback-amount -1}}
+                                    {:name "smelly" :description "increase shop prices by $5" :effect {:affect-prices 5}}
+                                    {:name "fine" :description "" :effect {}}]
+                         :postfixes [{:name "of webwalking" :description "ignore webs"
+                                      :effect {:ignore-webs 1}}
+                                     {:name "of acidwalking" :description "ignore acid pools"
+                                      :effect {:ignore-acid-floor 1}}
+                                     {:name "of running" :description "+2 movement"
+                                      :effect {:max-steps 2}}
+                                     {:name "of standing" :description "resist knockback 50%"
+                                      :effect {:resist-knockback 1}}]}
+                        {:base {:char "]" :slot "armor" :name "cape"}
+                         :prefixes [{:name "heavy" :description "-1 movement" :effect {:max-steps -1}}
+                                    {:name "uncomfortable" :description "-1 knockback" :effect {:knockback-amount -1}}
+                                    {:name "fine" :description "" :effect {}}
+                                    {:name "cumbersome" :description "-1 movement, -1 knockback" :effect {:max-steps -1 :knockback-amount -1}}]
+                         :postfixes [{:name "of life" :description "+1 life"
+                                      :effect {:max-health 1 :health 1}}
+                                     {:name "of anti-poison" :description "ignore poison attacks"
+                                      :effect {:ignore-poison 1}}
+                                     {:name "of defense" :description "+1 defence"
+                                      :effect {:defence 1}}
+                                     {:name "of standing" :description "resist knockback 50%"
+                                      :effect {:resist-knockback 1}}]}
+                        {:base {:char "(" :slot "headwear" :name "helm"}
+                         :prefixes [{:name "heavy" :description "-1 movement" :effect {:max-steps -1}}
+                                    {:name "uncomfortable" :description "-1 knockback" :effect {:knockback-amount -1}}
+                                    {:name "fine" :description "" :effect {}}
+                                    {:name "cumbersome" :description "-1 movement, -1 knockback" :effect {:max-steps -1 :knockback-amount -1}}]
+                         :postfixes [{:name "of life" :description "+1 life"
+                                      :effect {:max-health 1 :health 1}}
+                                     {:name "of standing" :description "resist knockback 50%"
+                                      :effect {:resist-knockback 1}}
+                                     {:name "of charming" :description "decrease shop prices by $5"
+                                      :effect {:affect-prices -5}}
+                                     {:name "of defense" :description "+1 defence"
+                                      :effect {:defence 1}}]}
+                        {:base {:char ")" :slot "weapon" :name "knuckles"}
+                         :prefixes [{:name "fine" :description "" :effect {}}
+                                    {:name "crude" :description "-1 attack" :effect {:attack -1}}
+                                    {:name "bulky" :description "-1 defence" :effect {:defence -1}}
+                                    {:name "soft" :description "-1 knockback" :effect {:knockback-amount -1}}]
+                         :postfixes [{:name "of punching" :description "+2 knockback"
+                                      :effect {:knockback-amount 2}}
+                                     {:name "of defense" :description "+1 defence"
+                                      :effect {:defence 1}}
+                                     {:name "of attack" :description "+1 attack"
+                                      :effect {:attack 1}}
+                                     {:name "of charming" :description "decrease shop prices by $5"
+                                      :effect {:affect-prices -5}}]}])
+        noun (:base data)
+        prefix (rand-nth (:prefixes data))
+        postfix (rand-nth (:postfixes data))
         [prefix postfix] (cond
                           is-store-item
                           [prefix postfix]
@@ -38,14 +65,15 @@
                           [prefix nil]
                           :else
                           [nil postfix])
-        item-name (:name noun)
-        item-name (if prefix (str (:name prefix) " " item-name) item-name)
-        item-name (if postfix (str item-name " " (:name postfix)) item-name)
-        item-name (clojure.string/capitalize item-name)
-        description ""
-        description (if postfix (str description " " (:description postfix)) description)
-        description (if prefix (str description " " (:description prefix)) description)
-        description (.trim description)
+        item-name [(:name noun)]
+        item-name (if prefix (concat [(:name prefix)] item-name) item-name)
+        item-name (if postfix (concat item-name [(:name postfix)]) item-name)
+        item-name (clojure.string/capitalize (clojure.string/join " " item-name))
+        description []
+        description (if prefix (concat description [(:description prefix)]) description)
+        description (if postfix (concat description [(:description postfix)]) description)
+        description (clojure.string/capitalize (str (clojure.string/join ", " description) "."))
+        description (if (= 1 (count description)) "" description)
         effect {}
         effect (if prefix (merge-with + effect (:effect prefix)) effect)
         effect (if postfix (merge-with + effect (:effect postfix)) effect)]
