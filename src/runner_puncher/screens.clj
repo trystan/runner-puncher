@@ -71,7 +71,7 @@
         runner-start (- puncher-start (:max-steps player) (:poison-amount player) 4 3)]
     (-> t
         (add-string (apply str (repeat width-in-characters " ")) 0 0 fg (hsl 45 25 25))
-        (add-string (str "Level " (:dungeon-level player) " going " (if (:going-up player) "up" "down")) 1 0 fg nil)
+        (add-string (str "Level " (:dungeon-level player) " going " (if (= 1 (:going-up player)) "up" "down")) 1 0 fg nil)
 
         (add-string (str "$" (:gold player)) (- runner-start 4) 0 (hsl 60 50 50) nil)
 
@@ -160,6 +160,14 @@
       :down  (swap! game-atom move-player-target  0  1)
       :left  (swap! game-atom move-player-target -1  0)
       :right (swap! game-atom move-player-target  1  0)
+      :k (swap! game-atom move-player-target  0 -1)
+      :j (swap! game-atom move-player-target  0  1)
+      :h (swap! game-atom move-player-target -1  0)
+      :l (swap! game-atom move-player-target  1  0)
+      :y (swap! game-atom move-player-target -1 -1)
+      :u (swap! game-atom move-player-target  1 -1)
+      :b (swap! game-atom move-player-target -1  1)
+      :n (swap! game-atom move-player-target  1  1)
       :left-click (swap! game-atom move-player-to-target)
       :enter (swap! game-atom move-player-to-target)
       (println e))))

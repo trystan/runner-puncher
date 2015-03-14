@@ -68,6 +68,7 @@
   (let [affect (get-in game [:player :affect-prices] 0)
         apply-discount (fn [i] (update i :price #(+ % affect)))]
     (-> game
+        (assoc-in [:player :steps-remaining] (get-in game [:player :max-steps]))
         (update :store-items restock-store-items)
         (update :store-items #(mapv apply-discount %)))))
 

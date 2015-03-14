@@ -100,7 +100,7 @@
 
 (defn make-treasures [grid difficulty candidate-positions]
   (let [candidates (shuffle candidate-positions)
-        gold-positions (take (+ 29 (* 3 difficulty)) candidates)
-        item-positions (take (+ 9 (* 3 difficulty)) (drop (count gold-positions) candidates))]
+        gold-positions (take (+ 34 (* 3 difficulty)) candidates)
+        item-positions (take (+ 14 (* 3 difficulty)) (drop (count gold-positions) candidates))]
     (merge (into {} (for [t (map #(new-item % false) item-positions)] [(:id t) t]))
            (into {} (for [t (map new-gold gold-positions)] [(:id t) t])))))

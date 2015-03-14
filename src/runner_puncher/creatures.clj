@@ -12,7 +12,7 @@
 
 (defn describe-slot [creature slot]
   (if (get creature slot)
-    (str (clojure.string/capitalize slot) ": " (get-in creature [slot :name]) " - " (get-in creature [slot :description]))
+    (str (clojure.string/capitalize slot) ": " (get-in creature [slot :name]) ". " (get-in creature [slot :description]))
     (str (clojure.string/capitalize slot) ": none")))
 
 (defn end-movement [creature]
