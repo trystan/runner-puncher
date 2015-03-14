@@ -1,6 +1,5 @@
 (ns runner_puncher.creatures
-  (:require [runner_puncher.framework :refer :all]
-            [runner_puncher.util :refer :all]))
+  (:require [runner_puncher.util :refer :all]))
 
 (defn describe-creature [creature]
   (let [d (:description creature)
@@ -35,7 +34,7 @@
     creature))
 
 (defn poison-creature [creature]
-  (if (> (:ignore-poison creature 0) 0)
+  (if (or (< (:health creature) 1) (> (:ignore-poison creature 0) 0))
     creature
     (-> creature
         (assoc :poison-amount (inc (:poison-amount creature 0)))

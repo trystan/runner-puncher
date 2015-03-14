@@ -13,6 +13,8 @@
 
 (declare start-screen play-screen store-screen win-screen lose-screen)
 
+(defn trace [x]
+  nil)
 
 ;; -------- play screen -------- ;;
 
@@ -122,7 +124,7 @@
 (defn render-messages [t at-top messages]
   (let [most-recent (:at (last (sort-by :at messages)))]
     (loop [t t
-           messages (filter #(= most-recent (:at %)) messages)
+           messages (take 5 (filter #(= most-recent (:at %)) messages))
            y (if at-top
                min-y
                (- (global :height-in-characters) (count messages)))]
@@ -148,15 +150,13 @@
         (render-creature player)
         (render-effects (filter :is-effect (map second game)))
         (render-target-fn)
-        (render-hud player)
         (render-target game mx my)
-        (render-messages (> (:y player) (* 0.75 (global :height-in-characters))) (:messages game)))))
+        (render-messages (> (:y player) (* 0.75 (global :height-in-characters))) (:messages game))
+        (render-hud player))))
 
 (defn key-press-play-screen [e]
   (when (empty? (get-in @game-atom [:player :path]))
     (case (to-keyword e)
-      :W (swap-screen win-screen)
-      :L (swap-screen lose-screen)
       :up    (swap! game-atom move-player-target  0 -1)
       :down  (swap! game-atom move-player-target  0  1)
       :left  (swap! game-atom move-player-target -1  0)
@@ -171,7 +171,7 @@
       :n (swap! game-atom move-player-target  1  1)
       :left-click (swap! game-atom move-player-to-target)
       :enter (swap! game-atom move-player-to-target)
-      (println e))))
+      (trace e))))
 
 (defn mouse-move-play-screen [e]
   (when (empty? (get-in @game-atom [:player :path]))
@@ -210,19 +210,19 @@
 (defn render-start-screen []
   (-> {}
       (add-center-string "RUNNER_PUNCHER" 2)
-      (add-center-string "A 2015 7DRL by Trystan Spangler" 3)
+      (add-center-string "A 2015 7DRL by Trystan Spangler" 4)
       (add-center-string (str "You must find the amulet on the " final-floor-depth "th floor and return to the surface.") 6)
       (add-center-string "-- Click or press Enter to start --" (- (global :height-in-characters) 2))))
 
 (defn on-key-press-start-screen [e]
   (case (to-keyword e)
     :left-click (do
-             (reset! game-atom (new-game win-screen store-screen))
-             (swap-screen play-screen))
+                  (swap! game-atom deref)
+                  (swap-screen play-screen))
     :enter (do
-             (reset! game-atom (new-game win-screen store-screen))
+             (swap! game-atom deref)
              (swap-screen play-screen))
-    (println e)))
+    (trace e)))
 
 (def start-screen {:on-render render-start-screen
                    :on-key-press on-key-press-start-screen})
@@ -268,10 +268,8 @@
     :9 (swap! game-atom maybe-buy-item 8)
     :enter (do
              (pop-screen)
-             (if (> (get-in @game-atom [:player :going-up]) 0)
-               (swap! game-atom exit-store-upstairs)
-               (swap! game-atom exit-store-downstairs)))
-    (println e)))
+             (reset! game-atom (deref (:next-level-future @game-atom))))
+    (trace e)))
 
 (def store-screen {:on-render render-store-screen
                    :on-key-press on-key-press-store-screen})
@@ -289,7 +287,7 @@
     :enter (do
              (reset! game-atom (new-game win-screen store-screen))
              (swap-screen play-screen))
-    (println e)))
+    (trace e)))
 
 (def win-screen {:on-render render-win-screen
                  :on-key-press on-key-press-win-screen})
@@ -307,7 +305,7 @@
     :enter (do
              (reset! game-atom (new-game win-screen store-screen))
              (swap-screen play-screen))
-    (println e)))
+    (trace e)))
 
 (def lose-screen {:on-render render-lose-screen
                   :on-key-press on-key-press-lose-screen})

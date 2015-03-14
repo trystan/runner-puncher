@@ -1,6 +1,7 @@
 (ns runner_puncher.core
   (:import [java.awt Toolkit])
   (:require [runner_puncher.framework :refer :all]
+            [runner_puncher.worldgen :refer :all]
             [runner_puncher.screens :refer :all]
             [runner_puncher.util :refer :all])
   (:gen-class))
@@ -22,4 +23,6 @@
                 {:window-width window-width
                  :window-height window-height
                  :tile-width font-width
-                 :tile-height font-height})))
+                 :tile-height font-height})
+
+     (reset! game-atom (future (new-game win-screen store-screen)))))

@@ -5,11 +5,6 @@
             [runner_puncher.items :refer :all]
             [runner_puncher.util :refer :all]))
 
-(defn add-message [game id message]
-  (if (= :player id)
-    (update game :messages #(conj % {:text message :at (:tick game)}))
-    game))
-
 (defn add-effect [game x y ttl c fg bg]
   (let [effect {:is-effect true :x x :y y :ttl ttl :char c
                 :fg fg :bg bg :id (str "effect-" (.toString (java.util.UUID/randomUUID)))}]
@@ -69,7 +64,6 @@
   (let [affect (get-in game [:player :affect-prices] 0)
         apply-discount (fn [i] (update i :price #(+ % affect)))]
     (-> game
-        (assoc-in [:player :steps-remaining] (get-in game [:player :max-steps]))
         (update :store-items restock-store-items)
         (update :store-items #(mapv apply-discount %)))))
 
@@ -221,7 +215,7 @@
         game)
       (enter-store game))))
 
-(defn exit-store-downstairs [game]
+(defn make-downstairs [game]
   (let [creature (get game :player)
         [ox oy] (:direction creature)
         stairs-from (if (= final-floor-depth (:dungeon-level creature)) :floor :stairs-up)
@@ -229,6 +223,7 @@
     (-> game
         (remove-enemies)
         (remove-items)
+        (assoc-in [:player :steps-remaining] (get-in game [:player :max-steps]))
         (merge (generate-level (inc (:dungeon-level creature)) (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
         (update-in [:player :dungeon-level] inc)
         (update-in [:player :difficulty] inc)
@@ -237,12 +232,13 @@
         (update-in [:player :y] #(max (inc min-y) (min (+ % oy) (- (global :height-in-characters) 2))))
         (add-message :player (str "You go down into dungeon level " (inc (:dungeon-level creature)) ".")))))
 
-(defn exit-store-upstairs [game]
+(defn make-upstairs [game]
   (let [creature (get game :player)
         [ox oy] (:direction creature)]
     (-> game
         (remove-enemies)
         (remove-items)
+        (assoc-in [:player :steps-remaining] (get-in game [:player :max-steps]))
         (merge (generate-level (dec (:dungeon-level creature)) (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
         (update-in [:player :dungeon-level] dec)
         (update-in [:player :difficulty] inc)
@@ -260,10 +256,14 @@
         :stairs-down
         (if (> (:going-up creature) 0)
           game
-          (enter-store game))
+          (-> game
+            (assoc :next-level-future (future (make-downstairs game)))
+            (enter-store)))
         :stairs-up
         (if (> (:going-up creature) 0)
-          (move-upstairs game id)
+          (-> game
+            (assoc :next-level-future (future (make-upstairs game)))
+            (enter-store))
           game)
         game))))
 
@@ -558,17 +558,3 @@
           (apply-purchace item)
           (assoc-in [:store-items index] nil))
       game)))
-
-(defn new-game [win-screen store-screen]
-  (let [g {:tick 0
-           :enemy-catalog (new-enemy-catalog)
-           :target [5 9]
-           :store-items []
-           :exit-screen win-screen
-           :store-screen store-screen
-           :messages []
-           :player (new-player [5 9])}]
-    (-> g
-        (merge (generate-level 1 1 (:enemy-catalog g) 4 9 5 9 :stairs-up :stairs-down))
-        (add-message :player "You are RUNNER_PUNCHER.")
-        (add-message :player "Use the keyboard and enter or the mouse to move."))))

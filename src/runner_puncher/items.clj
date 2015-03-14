@@ -1,5 +1,5 @@
 (ns runner_puncher.items
-  (:require [runner_puncher.framework :refer :all]))
+  (:require [runner_puncher.util :refer :all]))
 
 (def final-floor-depth 5)
 
