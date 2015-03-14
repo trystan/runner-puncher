@@ -371,11 +371,11 @@
         amulet (make-amulet target)]
     [grid {(:id amulet) amulet}]))
 
-(defn generate-level [depth stairs-x stairs-y start-x start-y stairs-from stairs-to]
+(defn generate-level [depth enemy-catalog stairs-x stairs-y start-x start-y stairs-from stairs-to]
   (let [grid (generate-grid stairs-x stairs-y start-x start-y stairs-from stairs-to)
         [grid amulet] (if (= final-floor-depth depth)
                         (replace-down-stairs-with-amulet grid)
                         [grid {}])]
     (merge {:grid grid}
-           (make-creatures grid depth (find-tiles :floor grid))
+           (make-creatures grid depth enemy-catalog (find-tiles :floor grid))
            (make-treasures grid depth (find-tiles :floor grid)) amulet)))

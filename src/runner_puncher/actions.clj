@@ -115,7 +115,7 @@
     (reduce apply-projectile-damage game expired-projectiles)))
 
 (defn spawn-creature-at [game x y allow-sumoner]
-  (let [c (new-enemy [x y])]
+  (let [c (new-enemy (:enemy-catalog game) [x y])]
     (if (and (not allow-sumoner) (= [:summon-others] (:on-death c)))
       (spawn-creature-at game x y allow-sumoner)
       (into game [[(:id c) c]]))))
@@ -124,7 +124,7 @@
   (let [candidates (filter (fn [[x2 y2]] (nearby x y x2 y2 4 9)) (find-tiles :floor (:grid game)))
         c (if (empty? candidates)
             nil
-            (new-enemy (rand-nth candidates)))]
+            (new-enemy (:enemy-catalog game) (rand-nth candidates)))]
     (if c
       (into game [[(:id c) c]])
       game)))
@@ -227,7 +227,7 @@
     (-> game
         (remove-enemies)
         (remove-items)
-        (merge (generate-level (inc (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
+        (merge (generate-level (inc (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) stairs-from stairs-to))
         (update-in [:player :dungeon-level] inc)
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
@@ -240,7 +240,7 @@
     (-> game
         (remove-enemies)
         (remove-items)
-        (merge (generate-level (dec (:dungeon-level creature)) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
+        (merge (generate-level (dec (:dungeon-level creature)) (:enemy-catalog game) (:x creature) (:y creature) (+ ox (:x creature)) (+ oy (:y creature)) :stairs-down :stairs-up))
         (update-in [:player :dungeon-level] dec)
         (update-in [:player] unpoison-creature-once)
         (update-in [:player :x] #(max (inc min-x) (min (+ % ox) (- (global :width-in-characters) 2))))
@@ -546,6 +546,7 @@
 
 (defn new-game [win-screen store-screen]
   (let [g {:tick 0
+           :enemy-catalog (new-enemy-catalog)
            :target [5 9]
            :store-items []
            :exit-screen win-screen
@@ -553,5 +554,5 @@
            :messages []
            :player (new-player [5 9])}]
     (-> g
-        (merge (generate-level 1 4 9 5 9 :stairs-up :stairs-down))
+        (merge (generate-level 1 (:enemy-catalog g) 4 9 5 9 :stairs-up :stairs-down))
         (add-message :player "You are RUNNER_PUNCHER."))))

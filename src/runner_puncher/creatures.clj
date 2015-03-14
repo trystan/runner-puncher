@@ -135,7 +135,7 @@
       "weapon" {:name "Baguette" :description "+0 attack."}
       "headwear" {:name "Chef's hat" :description "+0 defence."}}]))
 
-(def enemy-catalog
+(defn new-enemy-catalog []
   (let [pre (shuffle enemy-prefixes)
         main (shuffle enemy-types)
         merge-fn (fn [a b]
@@ -150,7 +150,7 @@
                     (println "berge-fn" a b)))]
     (map (partial merge-with merge-fn) pre main)))
 
-(defn new-enemy [[x y]]
+(defn new-enemy [enemy-catalog [x y]]
   (let [default {:is-creature true :steps-remaining 1 :max-steps 1
                  :health 1 :max-health 1 :attack 1 :defence 0
                  :knockback-amount 0 :poison-amount 0
@@ -158,6 +158,7 @@
     (merge default (rand-nth enemy-catalog))))
 
 
-(defn make-creatures [grid depth candidate-positions]
-  (let [positions (take (+ 8 (* 4 depth)) (shuffle candidate-positions))]
-    (into {} (for [c (map new-enemy positions)] [(:id c) c]))))
+(defn make-creatures [grid depth enemy-catalog candidate-positions]
+  (let [positions (take (+ 8 (* 4 depth)) (shuffle candidate-positions))
+        valid-enemies (take (+ 1 depth) enemy-catalog)]
+    (into {} (for [c (map #(new-enemy valid-enemies %) positions)] [(:id c) c]))))
