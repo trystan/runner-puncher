@@ -71,7 +71,7 @@
 (defn new-player [[x y]]
   {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
    :description (str "Trying to find something on the " final-floor-depth "th dungeon level.")
-   :id :player :knockback-amount 5 :poison-amount 0 :attack 1 :defence 0
+   :id :player :knockback-amount 5 :poison-amount 0 :attack 1 :defense 0
    :is-creature true :going-up 0 :path [] :gold 0
    :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
    :x 5 :y 9 :dungeon-level 1 :difficulty 1 :direction [0 0]})
@@ -114,9 +114,9 @@
       :on-death []}
      {:type "knight"  :fg (hsl  45 s l) :description "Strong armor and weapons."
       :on-death []
-      :attack 2 :defence 2 :max-health 2 :health 2 :resist-knockback 1
+      :attack 2 :defense 2 :max-health 2 :health 2 :resist-knockback 1
       "weapon" {:name "Sword" :description "+1 attack."}
-      "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
+      "armor" {:name "Heavy armor" :description "+2 defense. Resist knockback 50%."}}
      {:type "archer" :fg (hsl  90 s l) :description "Ranged attacker."
       :on-death [] :ranged-attack 1
       "weapon" {:name "Bow" :description "Shoots arrows. Not accurate."}}
@@ -130,12 +130,12 @@
       "weapon" {:name "Dagger" :description ""}}
      {:type "guard"   :fg (hsl 270 s l) :description "Hard to take down."
       :on-death []
-      :defence 3 :health 3 :max-health 3 :resist-knockback 1
-      "armor" {:name "Heavy armor" :description "+2 defence. Resist knockback 50%."}}
+      :defense 3 :health 3 :max-health 3 :resist-knockback 1
+      "armor" {:name "Heavy armor" :description "+2 defense. Resist knockback 50%."}}
      {:type "baker"   :fg (hsl 315 s l) :description "Does not belong in dungeons."
       :on-death []
       "weapon" {:name "Baguette" :description "+0 attack."}
-      "headwear" {:name "Chef's hat" :description "+0 defence."}}]))
+      "headwear" {:name "Chef's hat" :description "+0 defense."}}]))
 
 (defn new-enemy-catalog []
   (let [pre (shuffle enemy-prefixes)
@@ -155,7 +155,7 @@
 (defn new-enemy [difficulty enemy-catalog [x y]]
   (let [valid-enemies (take (+ 1 difficulty) enemy-catalog)
         default {:is-creature true :steps-remaining 1 :max-steps 1
-                 :health 1 :max-health 1 :attack 1 :defence 0
+                 :health 1 :max-health 1 :attack 1 :defense 0
                  :knockback-amount 0 :poison-amount 0
                  :x x :y y :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))}]
     (merge default (rand-nth valid-enemies))))
@@ -164,6 +164,6 @@
 (defn make-creatures [grid difficulty enemy-catalog candidate-positions]
   (let [positions (take (+ 10 difficulty) (shuffle candidate-positions))]
     (into {} (for [c (map #(new-enemy difficulty enemy-catalog %) positions)]
-               (if (< (rand-int 100) 1000)
+               (if (< (rand-int 100) difficulty)
                  [(:id c) (embiggen-creature c)]
                  [(:id c) c])))))

@@ -182,7 +182,7 @@
     (update game id-from end-movement)
     (let [attacker (get game id-from)
           attacked (get game id-to)
-          damage (max 1 (- (:attack attacker 1) (:defence attacked 0)))
+          damage (max 1 (- (:attack attacker 1) (:defense attacked 0)))
           dx (- (:x attacked) (:x attacker))
           dy (- (:y attacked) (:y attacker))
           show-message (fn [g] (cond
@@ -297,7 +297,8 @@
       game)))
 
 (defn apply-acid-floor [game id x y]
-  (if (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game id))))
+  (if (or (get-in game [id :is-knocked-back])
+       (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game id)))))
     (-> game
         (update-in [id :health] dec)
         (assoc-in [:grid [x y]] :floor))
@@ -521,6 +522,7 @@
                             :when (not (= 0 xo yo))]
                         [(+ (:x c) xo) (+ (:y c) yo)])
            candidates (filter #(:walkable (get tiles (get-in game [:grid %]))) candidates)
+           candidates (remove #(:instadeath (get tiles (get-in game [:grid %]))) candidates)
            candidates (remove occupied-by-ally candidates)
            player (get game :player {:x 0 :y 0})
            toward-player (second (bresenham (:x c) (:y c) (:x player) (:y player)))

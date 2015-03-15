@@ -105,7 +105,7 @@
          (render-counters (:health c) (:max-health c) (:poison-amount c)
                           (char 3) red (+ (count creature-name) x 1) (+ y 0))
          (add-string (str " Attack " (:attack c)) (+ (count creature-name) (:max-health c) (:poison-amount c) 2) (+ y 0) fg bg)
-         (add-string (str " Defence " (:defence c)) (+ (count (str " Attack " (:attack c))) (count creature-name) (:max-health c) (:poison-amount c) 2) (+ y 0) fg bg)
+         (add-string (str " defense " (:defense c)) (+ (count (str " Attack " (:attack c))) (count creature-name) (:max-health c) (:poison-amount c) 2) (+ y 0) fg bg)
          (add-string (describe-creature c) x (+ y 1) fg bg)
          (add-string (describe-slot c "headwear") x (+ y 2) fg bg)
          (add-string (describe-slot c "armor") x (+ y 3) fg bg)

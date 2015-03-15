@@ -24,8 +24,8 @@
                                       :effect {:max-health 1 :health 1}}
                                      {:name "of anti-poison" :description "ignore poison attacks"
                                       :effect {:ignore-poison 1}}
-                                     {:name "of defense" :description "+1 defence"
-                                      :effect {:defence 1}}
+                                     {:name "of defense" :description "+1 defense"
+                                      :effect {:defense 1}}
                                      {:name "of standing" :description "resist knockback 50%"
                                       :effect {:resist-knockback 1}}]}
                         {:base {:char "(" :slot "headwear" :name "helm"}
@@ -39,17 +39,17 @@
                                       :effect {:resist-knockback 1}}
                                      {:name "of charming" :description "decrease shop prices by $5"
                                       :effect {:affect-prices -5}}
-                                     {:name "of defense" :description "+1 defence"
-                                      :effect {:defence 1}}]}
+                                     {:name "of defense" :description "+1 defense"
+                                      :effect {:defense 1}}]}
                         {:base {:char ")" :slot "weapon" :name "knuckles"}
                          :prefixes [{:name "fine" :description "" :effect {}}
                                     {:name "crude" :description "-1 attack" :effect {:attack -1}}
-                                    {:name "bulky" :description "-1 defence" :effect {:defence -1}}
+                                    {:name "bulky" :description "-1 defense" :effect {:defense -1}}
                                     {:name "soft" :description "-1 knockback" :effect {:knockback-amount -1}}]
                          :postfixes [{:name "of punching" :description "+2 knockback"
                                       :effect {:knockback-amount 2}}
-                                     {:name "of defense" :description "+1 defence"
-                                      :effect {:defence 1}}
+                                     {:name "of defense" :description "+1 defense"
+                                      :effect {:defense 1}}
                                      {:name "of attack" :description "+1 attack"
                                       :effect {:attack 1}}
                                      {:name "of charming" :description "decrease shop prices by $5"
