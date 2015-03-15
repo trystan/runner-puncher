@@ -296,9 +296,11 @@
           (spawn-creature-near x y))
       game)))
 
-(defn acid-floor [game id x y]
+(defn apply-acid-floor [game id x y]
   (if (and (= :acid-floor (get-in game [:grid [x y]])) (not (:ignore-acid-floor (get game id))))
-    (update-in game [id :health] dec)
+    (-> game
+        (update-in [id :health] dec)
+        (assoc-in [:grid [x y]] :floor))
     game))
 
 (defn apply-instadeath [game id x y]
@@ -337,7 +339,7 @@
            (assoc-in [id :direction] direction)
            (assoc-in [id :x] nx)
            (assoc-in [id :y] ny)
-           (acid-floor id nx ny)
+           (apply-acid-floor id nx ny)
            (apply-instadeath id nx ny)
            (use-stairs id)
            (pickup-item id))
@@ -449,8 +451,7 @@
   (let [c (unpoison-creature creature)
         c (assoc c
             :id (keyword "enemy-" (.toString (java.util.UUID/randomUUID)))
-            :max-health (inc (:max-health creature 1))
-            :health (inc (:max-health creature 1)))]
+            :health (:max-health creature 1))]
     (-> game
         (merge {(:id c) c})
         (add-message :player (str "The " (creature-name creature) " gets back up.")))))

@@ -70,7 +70,7 @@
 
 (defn new-player [[x y]]
   {:prefix "Player" :type "" :char "@" :fg {:r 250 :g 250 :b 250}
-   :description "Trying to find something on the 10th dungeon level."
+   :description (str "Trying to find something on the " final-floor-depth "th dungeon level.")
    :id :player :knockback-amount 5 :poison-amount 0 :attack 1 :defence 0
    :is-creature true :going-up 0 :path [] :gold 0
    :health 3 :max-health 3 :steps-remaining 5 :max-steps 5
@@ -162,5 +162,8 @@
 
 
 (defn make-creatures [grid difficulty enemy-catalog candidate-positions]
-  (let [positions (take (+ 10 (* 2 difficulty)) (shuffle candidate-positions))]
-    (into {} (for [c (map #(new-enemy difficulty enemy-catalog %) positions)] [(:id c) c]))))
+  (let [positions (take (+ 10 difficulty) (shuffle candidate-positions))]
+    (into {} (for [c (map #(new-enemy difficulty enemy-catalog %) positions)]
+               (if (< (rand-int 100) 1000)
+                 [(:id c) (embiggen-creature c)]
+                 [(:id c) c])))))

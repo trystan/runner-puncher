@@ -1,5 +1,7 @@
 (ns runner_puncher.util)
 
+(def final-floor-depth 5)
+
 (defn abs [^java.lang.Number number]
   (Math/abs number))
 

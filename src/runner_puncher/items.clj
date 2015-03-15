@@ -1,8 +1,6 @@
 (ns runner_puncher.items
   (:require [runner_puncher.util :refer :all]))
 
-(def final-floor-depth 5)
-
 (defn random-item [is-store-item]
   (let [data (rand-nth [{:base {:char "[" :slot "footwear" :name "shoes"}
                          :prefixes [{:name "heavy" :description "-1 movement" :effect {:max-steps -1}}
