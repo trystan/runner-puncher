@@ -206,15 +206,6 @@
           (show-message)
           (knockback-creature id-to dx dy)))))
 
-(defn move-upstairs [game id]
-  (let [creature (get game id)
-        [ox oy] (:direction creature)]
-    (if (= 1 (:dungeon-level creature))
-      (do
-        (swap-screen (:exit-screen game))
-        game)
-      (enter-store game))))
-
 (defn make-downstairs [game]
   (let [creature (get game :player)
         [ox oy] (:direction creature)
@@ -261,9 +252,11 @@
             (enter-store)))
         :stairs-up
         (if (> (:going-up creature) 0)
-          (-> game
-            (assoc :next-level-future (future (make-upstairs game)))
-            (enter-store))
+          (if (<= (:dungeon-level creature) 1)
+            (swap-screen (:exit-screen game))
+            (-> game
+                (assoc :next-level-future (future (make-upstairs game)))
+                (enter-store)))
           game)
         game))))
 
