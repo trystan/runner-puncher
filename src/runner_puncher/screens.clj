@@ -255,6 +255,18 @@
       (add-center-string "Press 1 through 9 to buy something." 4)
       (add-center-string "-- press Enter to go to the next level --" (- (global :height-in-characters) 2))))
 
+(defn exit-store []
+  (let [before @game-atom
+        after (deref (:next-level-future @game-atom))
+        new-player (assoc (:player before)
+                     :dungeon-level (:dungeon-level (:player after))
+                     :x (get-in after [:player :x])
+                     :y (get-in after [:player :y])
+                     :steps-remaining (:max-steps (:player before)))]
+    (reset! game-atom after)
+    (swap! game-atom assoc :store-items (:store-items before))
+    (swap! game-atom assoc :player new-player)))
+
 (defn on-key-press-store-screen [e]
   (case (to-keyword e)
     :1 (swap! game-atom maybe-buy-item 0)
@@ -268,7 +280,7 @@
     :9 (swap! game-atom maybe-buy-item 8)
     :enter (do
              (pop-screen)
-             (reset! game-atom (deref (:next-level-future @game-atom))))
+             (exit-store))
     (trace e)))
 
 (def store-screen {:on-render render-store-screen
